@@ -123,7 +123,7 @@ const ProviderForm = ({
         : joinUrl(backendUrl, `/organizations/${orgId}/providers/${providerId}`)
       : null;
 
-  const { data: provider, isLoading } = useSWR<ProviderWithScope>(
+  const { data: provider, isLoading, mutate } = useSWR<ProviderWithScope>(
     fetchUrl,
     fetcher,
   );
@@ -276,6 +276,9 @@ const ProviderForm = ({
       });
 
       if (response.ok) {
+        if (providerId) {
+          await mutate();
+        }
         if (formScope === "workspace") {
           router.push(`/${orgId}/workspace/${workspaceId}/settings/providers`);
         } else {

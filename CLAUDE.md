@@ -70,7 +70,7 @@ The project is organized as a Turborepo monorepo with three main packages:
 **Database**:
 
 - Drizzle ORM with Postgres 17 (via Docker)
-- Schema defined in `apps/backend/src/db/schema.ts`
+- Schemas defined under `apps/backend/src/db/`
 - Local database automatically started by `pnpm dev` via `start_postgres.sh` script
 - Database changes are applied using `pnpm drizzle-kit-push` (push-based, not migration files)
 
@@ -151,39 +151,6 @@ These schemas are imported by both frontend and backend to ensure type safety ac
 
 ## Key Technical Details
 
-### Database Schema Changes
-
-1. Edit `apps/backend/src/db/schema.ts`
-2. Ensure `pnpm dev` is running (database must be up)
-3. Run `pnpm drizzle-kit-push` to apply changes
-
-**Note**: Authentication tables are managed by better-auth. If you modify the auth configuration in `apps/backend/src/auth.ts`, regenerate the schema:
-
-```bash
-pnpm --dir apps/backend dlx @better-auth/cli@latest generate --config ./src/auth.ts --output ./src/db/auth-schema.ts --yes
-```
-
-### Adding New API Endpoints
-
-1. Create route file in `apps/backend/src/routes/`
-2. Import and mount in `apps/backend/src/server.ts`
-3. Define validation schemas in `packages/schemas/index.ts`
-4. Use Hono's context to access the database: `c.get("db")`
-5. Apply `requireAuth` middleware to protect routes:
-
-   ```typescript
-   import { requireAuth } from "../middleware.ts";
-
-   const myRoute = new Hono();
-   myRoute.use("*", requireAuth);
-   ```
-
-### Adding New Tools for Agents
-
-1. Define tool in `apps/backend/src/tools/` following existing patterns
-2. Export from `apps/backend/src/tools/index.ts`
-3. Tool IDs are stored in `agent.tools` JSONB array
-
 ### Environment Variables
 
 **Backend** (`apps/backend/.env`):
@@ -249,7 +216,5 @@ chore(tests): add missing test coverage
 ## Known Constraints
 
 - Postgres 18 is NOT supported due to Drizzle ORM compatibility issues
-- Currently only OpenRouter AI provider is fully implemented
-- Custom providers use OpenAI-compatible API format
 - When writing Typescript, format code matching the conventions used by Prettier.
 - This project uses Bruno, the API Client, for working with and testing the API endpoints. The Bruno files are stored under `apps/backend/bruno`.

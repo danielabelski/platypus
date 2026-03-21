@@ -36,7 +36,7 @@ FROM base AS prod-deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY --from=builder /app/out/json/ .
-RUN pnpm install --prod --no-optional
+RUN pnpm install --prod
 
 FROM base AS runner
 WORKDIR /app

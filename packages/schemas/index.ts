@@ -228,18 +228,26 @@ export const skillSchema = z.object({
 
 export type Skill = z.infer<typeof skillSchema>;
 
-export const skillCreateSchema = skillSchema.pick({
-  workspaceId: true,
-  name: true,
-  description: true,
-  body: true,
-});
+export const skillCreateSchema = skillSchema
+  .pick({
+    workspaceId: true,
+    name: true,
+    description: true,
+    body: true,
+  })
+  .extend({
+    agentIds: z.array(z.string()).optional(),
+  });
 
-export const skillUpdateSchema = skillSchema.pick({
-  name: true,
-  description: true,
-  body: true,
-});
+export const skillUpdateSchema = skillSchema
+  .pick({
+    name: true,
+    description: true,
+    body: true,
+  })
+  .extend({
+    agentIds: z.array(z.string()).optional(),
+  });
 
 // Tool
 

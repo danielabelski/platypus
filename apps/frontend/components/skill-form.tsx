@@ -5,16 +5,19 @@ import {
   FieldLabel,
   FieldGroup,
   FieldSet,
+  FieldDescription,
   FieldError,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ExpandableTextarea } from "@/components/expandable-textarea";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { type Skill } from "@platypus/schemas";
+import { type Skill, type Agent } from "@platypus/schemas";
 import useSWR from "swr";
 import { fetcher, parseValidationErrors, joinUrl } from "@/lib/utils";
 import { useBackendUrl } from "@/app/client-context";
@@ -38,8 +41,10 @@ const SkillForm = ({
   const { user } = useAuth();
   const backendUrl = useBackendUrl();
 
-  // Fetch existing skill data if editing
-  const { data: skill, isLoading: skillLoading } = useSWR<Skill>(
+  // Fetch existing skill data if editing (includes agentIds)
+  const { data: skill, isLoading: skillLoading } = useSWR<
+    Skill & { agentIds?: string[] }
+  >(
     skillId && user
       ? joinUrl(
           backendUrl,
@@ -49,11 +54,25 @@ const SkillForm = ({
     fetcher,
   );
 
+  // Fetch agents for association
+  const { data: agentsData } = useSWR<{ results: Agent[] }>(
+    backendUrl && user
+      ? joinUrl(
+          backendUrl,
+          `/organizations/${orgId}/workspaces/${workspaceId}/agents`,
+        )
+      : null,
+    fetcher,
+  );
+  const agents = agentsData?.results || [];
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     body: "",
   });
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
@@ -69,6 +88,13 @@ const SkillForm = ({
         description: skill.description,
         body: skill.body,
       });
+    }
+  }, [skill]);
+
+  // Initialize agent selections from the skill's agentIds
+  useEffect(() => {
+    if (skill?.agentIds) {
+      setSelectedAgentIds(skill.agentIds);
     }
   }, [skill]);
 
@@ -105,6 +131,7 @@ const SkillForm = ({
         name: formData.name,
         description: formData.description,
         body: formData.body,
+        agentIds: selectedAgentIds,
       };
 
       const url = skillId
@@ -233,6 +260,46 @@ const SkillForm = ({
           </Field>
         </FieldGroup>
       </FieldSet>
+
+      {agents.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Agents</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FieldDescription className="mb-4">
+              Select which agents this skill is enabled for.
+            </FieldDescription>
+            <FieldGroup className="grid grid-cols-2 gap-4">
+              {agents.map((agent) => (
+                <Field key={agent.id} orientation="horizontal">
+                  <Switch
+                    id={`agent-${agent.id}`}
+                    className="cursor-pointer"
+                    checked={selectedAgentIds.includes(agent.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedAgentIds((prev) =>
+                        checked
+                          ? [...prev, agent.id]
+                          : prev.filter((id) => id !== agent.id),
+                      );
+                    }}
+                    disabled={isSubmitting}
+                  />
+                  <FieldLabel htmlFor={`agent-${agent.id}`}>
+                    <div className="flex flex-col">
+                      <p>{agent.name}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {agent.description}
+                      </p>
+                    </div>
+                  </FieldLabel>
+                </Field>
+              ))}
+            </FieldGroup>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-2">
         <Button

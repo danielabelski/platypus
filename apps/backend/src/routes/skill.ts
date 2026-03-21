@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import { db } from "../index.ts";
 import { skill as skillTable, agent as agentTable } from "../db/schema.ts";
 import { skillCreateSchema, skillUpdateSchema } from "@platypus/schemas";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray, notInArray } from "drizzle-orm";
 import { requireAuth } from "../middleware/authentication.ts";
 import {
   requireOrgAccess,
@@ -56,7 +56,21 @@ skill.get(
       return c.json({ message: "Skill not found" }, 404);
     }
 
-    return c.json(record[0]);
+    // Find agents that have this skill assigned
+    const agentsWithSkill = await db
+      .select({ id: agentTable.id })
+      .from(agentTable)
+      .where(
+        and(
+          eq(agentTable.workspaceId, workspaceId),
+          sql`${agentTable.skillIds} @> ${JSON.stringify([skillId])}::jsonb`,
+        ),
+      );
+
+    return c.json({
+      ...record[0],
+      agentIds: agentsWithSkill.map((a) => a.id),
+    });
   },
 );
 
@@ -68,15 +82,36 @@ skill.post(
   requireWorkspaceAccess,
   sValidator("json", skillCreateSchema),
   async (c) => {
-    const data = c.req.valid("json");
+    const { agentIds, ...data } = c.req.valid("json");
     try {
+      const newId = nanoid();
       const record = await db
         .insert(skillTable)
         .values({
-          id: nanoid(),
+          id: newId,
           ...data,
         })
         .returning();
+
+      // Add skill to specified agents
+      if (agentIds && agentIds.length > 0) {
+        const workspaceId = c.req.param("workspaceId")!;
+        const newIdJson = JSON.stringify([newId]);
+        await db
+          .update(agentTable)
+          .set({
+            skillIds: sql`${agentTable.skillIds} || ${newIdJson}::jsonb`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(agentTable.workspaceId, workspaceId),
+              inArray(agentTable.id, agentIds),
+              sql`NOT ${agentTable.skillIds} @> ${newIdJson}::jsonb`,
+            ),
+          );
+      }
+
       return c.json(record[0], 201);
     } catch (error: any) {
       const isUniqueViolation =
@@ -108,7 +143,7 @@ skill.put(
   async (c) => {
     const workspaceId = c.req.param("workspaceId")!;
     const skillId = c.req.param("skillId");
-    const data = c.req.valid("json");
+    const { agentIds, ...data } = c.req.valid("json");
 
     try {
       const record = await db
@@ -127,6 +162,45 @@ skill.put(
 
       if (record.length === 0) {
         return c.json({ message: "Skill not found" }, 404);
+      }
+
+      // Update agent associations if agentIds was provided
+      if (agentIds !== undefined) {
+        const now = new Date();
+        const skillIdJson = JSON.stringify([skillId]);
+
+        // Remove skill from agents not in the new list
+        const removeWhere = [
+          eq(agentTable.workspaceId, workspaceId),
+          sql`${agentTable.skillIds} @> ${skillIdJson}::jsonb`,
+        ];
+        if (agentIds.length > 0) {
+          removeWhere.push(notInArray(agentTable.id, agentIds));
+        }
+        await db
+          .update(agentTable)
+          .set({
+            skillIds: sql`(${agentTable.skillIds})::jsonb - ${skillId}::text`,
+            updatedAt: now,
+          })
+          .where(and(...removeWhere));
+
+        // Add skill to agents in the new list that don't already have it
+        if (agentIds.length > 0) {
+          await db
+            .update(agentTable)
+            .set({
+              skillIds: sql`${agentTable.skillIds} || ${skillIdJson}::jsonb`,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(agentTable.workspaceId, workspaceId),
+                inArray(agentTable.id, agentIds),
+                sql`NOT ${agentTable.skillIds} @> ${skillIdJson}::jsonb`,
+              ),
+            );
+        }
       }
 
       return c.json(record[0], 200);

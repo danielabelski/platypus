@@ -24,7 +24,7 @@ export const useChatFilter = () => {
     } else {
       params.delete("tags");
     }
-    router.replace(`${pathname}?${params.toString()}`);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const clearFilters = () => {

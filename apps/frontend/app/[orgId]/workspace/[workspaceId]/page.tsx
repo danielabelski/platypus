@@ -246,15 +246,6 @@ const Workspace = () => {
             </Card>
           </div>
 
-          <TagCloud
-            orgId={orgId}
-            workspaceId={workspaceId}
-            selectedTags={selectedTags}
-            onTagToggle={toggleFilterTag}
-          />
-
-          <Separator />
-
           {/* Agents List Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -344,6 +335,13 @@ const Workspace = () => {
               </Link>
             </Button>
           </div>
+
+          <TagCloud
+            orgId={orgId}
+            workspaceId={workspaceId}
+            selectedTags={selectedTags}
+            onTagToggle={toggleFilterTag}
+          />
         </>
       )}
     </div>

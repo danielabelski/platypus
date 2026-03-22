@@ -154,7 +154,7 @@ const Workspace = () => {
   const boardCount = boardsData?.results?.length || 0;
 
   return (
-    <div className="flex flex-col gap-8 p-8 pb-32 max-w-6xl mx-auto">
+    <div className="flex flex-col gap-8 px-4 md:px-8 py-8 pb-32 max-w-6xl mx-auto">
       {/* Header Section */}
       <div className="flex flex-col">
         <span className="text-sm font-medium text-muted-foreground mb-1">

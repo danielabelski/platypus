@@ -63,6 +63,7 @@ import { parseValidationErrors } from "@/lib/utils";
 import { useBackendUrl } from "@/app/client-context";
 import { TagInput } from "@/components/tag-input";
 import { useChatFilter } from "@/hooks/use-chat-filter";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function AppSidebar({
   orgId,
@@ -73,6 +74,7 @@ export function AppSidebar({
 }) {
   const { user } = useAuth();
   const backendUrl = useBackendUrl();
+  const isMobile = useIsMobile();
 
   const pathname = usePathname();
   const router = useRouter();
@@ -348,7 +350,11 @@ export function AppSidebar({
                   </div>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="start" side="right">
+              <DropdownMenuContent
+                className="w-56"
+                align="start"
+                side={isMobile ? "bottom" : "right"}
+              >
                 <DropdownMenuLabel className="text-xs text-muted-foreground">
                   Workspaces
                 </DropdownMenuLabel>

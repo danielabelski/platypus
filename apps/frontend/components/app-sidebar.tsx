@@ -334,79 +334,84 @@ export function AppSidebar({
     <>
       <Sidebar>
         <SidebarHeader>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="h-auto py-2">
-                  <div className="flex flex-col flex-1 items-start leading-none">
-                    <span className="text-xs text-muted-foreground mb-1">
-                      {orgData?.name}
-                    </span>
-                    <div className="flex items-center gap-2 w-full">
-                      <FolderOpen className="size-4 shrink-0" />
-                      <span className="font-medium">
-                        {currentWorkspace?.name}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton className="h-auto py-2">
+                    <div className="flex flex-col flex-1 items-start leading-none">
+                      <span className="text-xs text-muted-foreground mb-1">
+                        {orgData?.name}
                       </span>
-                      <ChevronsUpDown className="ml-auto size-4 shrink-0" />
+                      <div className="flex items-center gap-2 w-full">
+                        <FolderOpen className="size-4 shrink-0" />
+                        <span className="font-medium">
+                          {currentWorkspace?.name}
+                        </span>
+                        <ChevronsUpDown className="ml-auto size-4 shrink-0" />
+                      </div>
                     </div>
-                  </div>
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-56"
-                align="start"
-                side={isMobile ? "bottom" : "right"}
-              >
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  Workspaces
-                </DropdownMenuLabel>
-                <DropdownMenuGroup>
-                  {workspaces.map((workspace) => {
-                    const href = `/${workspace.organizationId}/workspace/${workspace.id}`;
-                    return (
-                      <DropdownMenuItem key={workspace.id} asChild>
-                        <Link className="cursor-pointer" href={href}>
-                          {pathname.startsWith(href) ? (
-                            <FolderOpen />
-                          ) : (
-                            <FolderClosed />
-                          )}{" "}
-                          {workspace.name}
-                        </Link>
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem asChild>
-                    <Link className="cursor-pointer" href={`/${orgId}/create`}>
-                      <Plus /> Add Workspace
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link className="cursor-pointer" href="/">
-                      <ArrowLeftRight /> Switch Org
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <Button asChild className="w-full">
-              <Link
-                href={`/${orgId}/workspace/${workspaceId}/chat`}
-                onClick={() => {
-                  if (isMobile) {
-                    setOpenMobile(false);
-                  }
-                }}
-              >
-                <BotMessageSquare /> New Chat
-              </Link>
-            </Button>
-          </SidebarMenuItem>
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-56"
+                  align="start"
+                  side={isMobile ? "bottom" : "right"}
+                >
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Workspaces
+                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    {workspaces.map((workspace) => {
+                      const href = `/${workspace.organizationId}/workspace/${workspace.id}`;
+                      return (
+                        <DropdownMenuItem key={workspace.id} asChild>
+                          <Link className="cursor-pointer" href={href}>
+                            {pathname.startsWith(href) ? (
+                              <FolderOpen />
+                            ) : (
+                              <FolderClosed />
+                            )}{" "}
+                            {workspace.name}
+                          </Link>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem asChild>
+                      <Link
+                        className="cursor-pointer"
+                        href={`/${orgId}/create`}
+                      >
+                        <Plus /> Add Workspace
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link className="cursor-pointer" href="/">
+                        <ArrowLeftRight /> Switch Org
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <Button asChild className="w-full">
+                <Link
+                  href={`/${orgId}/workspace/${workspaceId}/chat`}
+                  onClick={() => {
+                    if (isMobile) {
+                      setOpenMobile(false);
+                    }
+                  }}
+                >
+                  <BotMessageSquare /> New Chat
+                </Link>
+              </Button>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarHeader>
         <SidebarSeparator className="mx-0 mt-1" />
         <SidebarContent>

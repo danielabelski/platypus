@@ -35,7 +35,11 @@ export const ModelSelectorDialog = ({
   return (
     <ModelSelector open={isOpen} onOpenChange={onOpenChange}>
       <ModelSelectorTrigger asChild>
-        <Button variant="outline" size="sm" className="max-w-40 overflow-hidden sm:max-w-none">
+        <Button
+          variant="outline"
+          size="sm"
+          className="max-w-40 overflow-hidden sm:max-w-none"
+        >
           <span className="truncate">
             {agentId
               ? selectedAgent?.name || "Select model"

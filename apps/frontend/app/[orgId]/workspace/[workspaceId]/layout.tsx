@@ -97,7 +97,7 @@ export default async function WorkspaceLayout({
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Kbd className="text-sm font-sans">
+              <Kbd className="hidden text-sm font-sans md:flex">
                 <Search className="size-4" /> ⌘K
               </Kbd>
               <NotificationsDropdown />

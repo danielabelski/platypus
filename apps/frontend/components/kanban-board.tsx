@@ -27,7 +27,7 @@ import type {
   KanbanCard,
   KanbanColumn,
 } from "@platypus/schemas";
-import { fetcher, joinUrl } from "@/lib/utils";
+import { cn, fetcher, joinUrl } from "@/lib/utils";
 import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
 import { KanbanColumnComponent } from "@/components/kanban-column";
@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -105,6 +106,7 @@ export function KanbanBoard({
   const [addCardDialogOpen, setAddCardDialogOpen] = useState(false);
   const [addCardColumnId, setAddCardColumnId] = useState<string | null>(null);
   const [newCardTitle, setNewCardTitle] = useState("");
+  const [newCardLabelIds, setNewCardLabelIds] = useState<string[]>([]);
 
   // Edit column dialog state
   const [editColumnDialogOpen, setEditColumnDialogOpen] = useState(false);
@@ -296,6 +298,7 @@ export function KanbanBoard({
   const handleAddCard = useCallback((columnId: string) => {
     setAddCardColumnId(columnId);
     setNewCardTitle("");
+    setNewCardLabelIds([]);
     setAddCardDialogOpen(true);
   }, []);
 
@@ -305,17 +308,21 @@ export function KanbanBoard({
       await fetch(joinUrl(baseUrl, `/columns/${addCardColumnId}/cards`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newCardTitle.trim() }),
+        body: JSON.stringify({
+          title: newCardTitle.trim(),
+          ...(newCardLabelIds.length > 0 && { labelIds: newCardLabelIds }),
+        }),
         credentials: "include",
       });
       setAddCardDialogOpen(false);
       setNewCardTitle("");
+      setNewCardLabelIds([]);
       setAddCardColumnId(null);
       await mutate();
     } catch {
       toast.error("Failed to create card");
     }
-  }, [newCardTitle, addCardColumnId, baseUrl, mutate]);
+  }, [newCardTitle, newCardLabelIds, addCardColumnId, baseUrl, mutate]);
 
   const handleEditColumn = useCallback(
     (columnId: string) => {
@@ -590,17 +597,48 @@ export function KanbanBoard({
           <DialogHeader>
             <DialogTitle>Add Card</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="cardTitle">Card Title</Label>
-            <Input
-              id="cardTitle"
-              value={newCardTitle}
-              onChange={(e) => setNewCardTitle(e.target.value)}
-              placeholder="Enter card title"
-              onKeyDown={(e) => e.key === "Enter" && confirmAddCard()}
-              className="mt-2"
-              autoFocus
-            />
+          <div className="py-4 space-y-4">
+            <div>
+              <Label htmlFor="cardTitle">Card Title</Label>
+              <Input
+                id="cardTitle"
+                value={newCardTitle}
+                onChange={(e) => setNewCardTitle(e.target.value)}
+                placeholder="Enter card title"
+                onKeyDown={(e) => e.key === "Enter" && confirmAddCard()}
+                className="mt-2"
+                autoFocus
+              />
+            </div>
+            {labels.length > 0 && (
+              <div>
+                <Label>Labels</Label>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {labels.map((label) => {
+                    const isActive = newCardLabelIds.includes(label.id);
+                    return (
+                      <Badge
+                        key={label.id}
+                        className={cn(
+                          "cursor-pointer transition-opacity border-0",
+                          !isActive && "opacity-40",
+                        )}
+                        style={{ backgroundColor: label.color }}
+                        onClick={() =>
+                          setNewCardLabelIds((prev) =>
+                            prev.includes(label.id)
+                              ? prev.filter((id) => id !== label.id)
+                              : [...prev, label.id],
+                          )
+                        }
+                      >
+                        {label.name}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button

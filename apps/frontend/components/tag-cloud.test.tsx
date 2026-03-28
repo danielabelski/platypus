@@ -297,8 +297,8 @@ describe("TagCloud", () => {
 
     // React has count 10 (max), testing has count 2 (min)
     // React should have larger font size
-    const reactFontSize = reactBadge?.style.fontSize;
-    const testingFontSize = testingBadge?.style.fontSize;
+    const reactFontSize = (reactBadge as HTMLElement)?.style.fontSize;
+    const testingFontSize = (testingBadge as HTMLElement)?.style.fontSize;
 
     expect(reactFontSize).toBeDefined();
     expect(testingFontSize).toBeDefined();

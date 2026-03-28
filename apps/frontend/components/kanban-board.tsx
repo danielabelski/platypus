@@ -381,19 +381,36 @@ export function KanbanBoard({
   const handleCardSave = useCallback(
     async (
       cardId: string,
-      cardData: { title?: string; body?: string; labelIds?: string[] },
+      cardData: {
+        title?: string;
+        body?: string;
+        labelIds?: string[];
+        columnId?: string;
+      },
     ) => {
       const column = columns.find((col) =>
         col.cards.some((c) => c.id === cardId),
       );
       if (!column) return;
+      const { columnId: targetColumnId, ...updateData } = cardData;
       try {
         await fetch(joinUrl(baseUrl, `/cards/${cardId}`), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(cardData),
+          body: JSON.stringify(updateData),
           credentials: "include",
         });
+        if (targetColumnId && targetColumnId !== column.id) {
+          await fetch(joinUrl(baseUrl, `/cards/${cardId}/move`), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              columnId: targetColumnId,
+              afterCardId: null,
+            }),
+            credentials: "include",
+          });
+        }
         setDialogOpen(false);
         setSelectedCard(null);
         await mutate();
@@ -726,6 +743,14 @@ export function KanbanBoard({
       <KanbanCardDialog
         card={selectedCard}
         labels={labels}
+        columns={columns.map((c) => ({ id: c.id, name: c.name }))}
+        columnId={
+          selectedCard
+            ? (columns.find((col) =>
+                col.cards.some((c) => c.id === selectedCard.id),
+              )?.id ?? null)
+            : null
+        }
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSave={handleCardSave}

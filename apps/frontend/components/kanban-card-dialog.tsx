@@ -7,6 +7,7 @@ import useSWR from "swr";
 import type {
   KanbanCard,
   KanbanCardComment,
+  KanbanColumn,
   KanbanLabel,
 } from "@platypus/schemas";
 import {
@@ -25,6 +26,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Trash2 } from "lucide-react";
 import { cn, fetcher, joinUrl } from "@/lib/utils";
 import { useBackendUrl } from "@/app/client-context";
@@ -47,6 +55,8 @@ function formatRelativeTime(date: Date): string {
 export function KanbanCardDialog({
   card,
   labels,
+  columns,
+  columnId: initialColumnId,
   open,
   onOpenChange,
   onSave,
@@ -57,11 +67,18 @@ export function KanbanCardDialog({
 }: {
   card: KanbanCard | null;
   labels: KanbanLabel[];
+  columns: Pick<KanbanColumn, "id" | "name">[];
+  columnId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (
     cardId: string,
-    data: { title?: string; body?: string; labelIds?: string[] },
+    data: {
+      title?: string;
+      body?: string;
+      labelIds?: string[];
+      columnId?: string;
+    },
   ) => void;
   onDelete: (cardId: string) => void;
   orgId: string;
@@ -74,6 +91,7 @@ export function KanbanCardDialog({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
+  const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [focusField, setFocusField] = useState<"title" | "body">("title");
 
@@ -105,11 +123,12 @@ export function KanbanCardDialog({
       setTitle(card.title);
       setBody(card.body ?? "");
       setSelectedLabelIds(card.labelIds ?? []);
+      setSelectedColumnId(initialColumnId);
       setIsEditing(false);
       setNewCommentBody("");
       setEditingCommentId(null);
     }
-  }, [card]);
+  }, [card, initialColumnId]);
 
   if (!card) return null;
 
@@ -335,8 +354,30 @@ export function KanbanCardDialog({
             </div>
           </div>
 
-          {/* Sidebar - Labels and Metadata */}
+          {/* Sidebar - Column, Labels, and Metadata */}
           <div className="sm:w-48 shrink-0 space-y-4 border-t sm:border-t-0 pt-4 sm:pt-0">
+            {columns.length > 1 && selectedColumnId && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Column
+                </p>
+                <Select
+                  value={selectedColumnId}
+                  onValueChange={setSelectedColumnId}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {columns.map((col) => (
+                      <SelectItem key={col.id} value={col.id}>
+                        {col.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {labels.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-2">
@@ -386,7 +427,15 @@ export function KanbanCardDialog({
           </Button>
           <Button
             onClick={() =>
-              onSave(card.id, { title, body, labelIds: selectedLabelIds })
+              onSave(card.id, {
+                title,
+                body,
+                labelIds: selectedLabelIds,
+                ...(selectedColumnId &&
+                  selectedColumnId !== initialColumnId && {
+                    columnId: selectedColumnId,
+                  }),
+              })
             }
             disabled={!title.trim()}
           >

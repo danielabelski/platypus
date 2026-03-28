@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import { fetcher, joinUrl } from "@/lib/utils";
 import type { Workspace, ChatListItem, Organization } from "@platypus/schemas";
@@ -19,7 +19,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-  useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,17 +65,15 @@ import { TagInput } from "@/components/tag-input";
 import { useChatFilter } from "@/hooks/use-chat-filter";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-export function AppSidebar({
-  orgId,
-  workspaceId,
-}: {
-  orgId: string;
-  workspaceId: string;
-}) {
+export function AppSidebar() {
+  const { orgId, workspaceId } = useParams<{
+    orgId: string;
+    workspaceId: string;
+  }>();
   const { user } = useAuth();
   const backendUrl = useBackendUrl();
   const isMobile = useIsMobile();
-  const { setOpenMobile } = useSidebar();
+
 
   const pathname = usePathname();
   const router = useRouter();
@@ -399,14 +396,7 @@ export function AppSidebar({
             </SidebarMenuItem>
             <SidebarMenuItem>
               <Button asChild className="w-full">
-                <Link
-                  href={`/${orgId}/workspace/${workspaceId}/chat`}
-                  onClick={() => {
-                    if (isMobile) {
-                      setOpenMobile(false);
-                    }
-                  }}
-                >
+                <Link href={`/${orgId}/workspace/${workspaceId}/chat`}>
                   <BotMessageSquare /> New Chat
                 </Link>
               </Button>

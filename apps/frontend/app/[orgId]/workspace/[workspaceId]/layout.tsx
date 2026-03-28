@@ -4,12 +4,7 @@ import type { Metadata } from "next";
 import { ModeToggle } from "@/components/mode-toggle";
 import { NotificationsDropdown } from "@/components/notifications-dropdown";
 import { CommandMenu } from "@/components/command-menu";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Kbd } from "@/components/ui/kbd";
 import { Search, Home } from "lucide-react";
 import Link from "next/link";
@@ -79,38 +74,35 @@ export default async function WorkspaceLayout({
 
   return (
     <ProtectedRoute requireOrgAccess requireWorkspaceAccess>
-      <SidebarProvider className="min-h-0 h-dvh">
-        <AppSidebar orgId={orgId} workspaceId={workspaceId} />
-        <SidebarInset className="min-w-0">
-          <header className="flex shrink-0 justify-between p-2">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="cursor-pointer" />
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                className="size-7 cursor-pointer"
-              >
-                <Link href={`/${orgId}/workspace/${workspaceId}`}>
-                  <Home />
-                </Link>
-              </Button>
-            </div>
-            <div className="flex items-center gap-2">
-              <Kbd className="hidden text-sm font-sans md:flex">
-                <Search className="size-4" /> ⌘K
-              </Kbd>
-              <NotificationsDropdown />
-              <ModeToggle />
-              <UserMenu />
-            </div>
-          </header>
-          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
-            {children}
+      <SidebarInset className="min-w-0">
+        <header className="flex shrink-0 justify-between p-2">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="cursor-pointer" />
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className="size-7 cursor-pointer"
+            >
+              <Link href={`/${orgId}/workspace/${workspaceId}`}>
+                <Home />
+              </Link>
+            </Button>
           </div>
-          <CommandMenu orgId={orgId} workspaceId={workspaceId} />
-        </SidebarInset>
-      </SidebarProvider>
+          <div className="flex items-center gap-2">
+            <Kbd className="hidden text-sm font-sans md:flex">
+              <Search className="size-4" /> ⌘K
+            </Kbd>
+            <NotificationsDropdown />
+            <ModeToggle />
+            <UserMenu />
+          </div>
+        </header>
+        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+          {children}
+        </div>
+        <CommandMenu orgId={orgId} workspaceId={workspaceId} />
+      </SidebarInset>
     </ProtectedRoute>
   );
 }

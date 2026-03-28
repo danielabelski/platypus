@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, FieldLabel, FieldGroup, FieldSet } from "@/components/ui/field";
 import { useState } from "react";
 import { useBackendUrl } from "@/app/client-context";
 import { joinUrl } from "@/lib/utils";
@@ -80,7 +79,7 @@ export function DeleteUserDialog({
     onOpenChange(open);
   };
 
-  const isConfirmed = confirmationText === "delete";
+  const isConfirmed = confirmationText.toLowerCase() === "delete user";
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -92,28 +91,16 @@ export function DeleteUserDialog({
             <span className="font-semibold">{user.name}</span> ({user.email})
             and remove all of their data from the system.
           </DialogDescription>
+          <div className="mt-4">
+            <Input
+              placeholder="Type 'Delete user' to confirm"
+              value={confirmationText}
+              onChange={(e) => setConfirmationText(e.target.value)}
+              disabled={isSubmitting}
+              autoComplete="off"
+            />
+          </div>
         </DialogHeader>
-
-        <FieldSet>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="confirmation">
-                Type <span className="font-mono font-semibold">delete</span> to
-                confirm
-              </FieldLabel>
-              <Input
-                id="confirmation"
-                type="text"
-                value={confirmationText}
-                onChange={(e) => setConfirmationText(e.target.value)}
-                disabled={isSubmitting}
-                placeholder="delete"
-                autoComplete="off"
-              />
-            </Field>
-          </FieldGroup>
-        </FieldSet>
-
         <DialogFooter>
           <Button
             variant="outline"

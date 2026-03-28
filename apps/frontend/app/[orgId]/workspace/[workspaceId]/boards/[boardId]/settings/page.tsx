@@ -9,15 +9,7 @@ import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
 import { BackButton } from "@/components/back-button";
 import { KanbanBoardForm } from "@/components/kanban-board-form";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DeleteBoardDialog } from "@/components/delete-board-dialog";
 
 const BoardSettingsPage = ({
   params,
@@ -45,7 +37,7 @@ const BoardSettingsPage = ({
     setIsDeleting(true);
     try {
       await fetch(baseUrl, { method: "DELETE", credentials: "include" });
-      router.push(`/${orgId}/workspace/${workspaceId}/boards`);
+      router.push(`/${orgId}/workspace/${workspaceId}`);
     } catch (err) {
       console.error("Failed to delete board:", err);
       setIsDeleting(false);
@@ -85,46 +77,13 @@ const BoardSettingsPage = ({
         />
       </div>
 
-      <Dialog
+      <DeleteBoardDialog
+        boardName={data.board.name}
         open={isDeleteDialogOpen}
-        onOpenChange={(open) => {
-          if (!isDeleting) setIsDeleteDialogOpen(open);
-        }}
-      >
-        <DialogContent
-          onPointerDownOutside={(e) => {
-            if (isDeleting) e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => {
-            if (isDeleting) e.preventDefault();
-          }}
-          showCloseButton={false}
-        >
-          <DialogHeader>
-            <DialogTitle>Delete Board</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this board? This action cannot be
-              undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-              disabled={isDeleting}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        loading={isDeleting}
+      />
     </div>
   );
 };

@@ -9,7 +9,7 @@ import {
   ItemContent,
 } from "@/components/ui/item";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/confirm-dialog";
+import { DeleteBoardDialog } from "@/components/delete-board-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -131,7 +131,11 @@ export const BoardsList = ({
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="cursor-pointer"
-                        onSelect={() => handleDeleteClick(board)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDeleteClick(board);
+                        }}
                       >
                         <Trash2 /> Delete
                       </DropdownMenuItem>
@@ -144,13 +148,10 @@ export const BoardsList = ({
         ))}
       </ul>
 
-      <ConfirmDialog
+      <DeleteBoardDialog
+        boardName={boardToDelete?.name ?? ""}
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title="Delete Board"
-        description={`Are you sure you want to delete "${boardToDelete?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        confirmVariant="destructive"
         onConfirm={handleDeleteConfirm}
       />
     </>

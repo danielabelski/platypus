@@ -16,23 +16,35 @@ import {
   PaperclipIcon,
   XIcon,
 } from "lucide-react";
-import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
+import type { ComponentProps, HTMLAttributes, ReactElement, ReactNode } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
 import { Streamdown } from "streamdown";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
+  avatar?: ReactNode;
 };
 
-export const Message = ({ className, from, ...props }: MessageProps) => (
+export const Message = ({
+  className,
+  from,
+  avatar,
+  children,
+  ...props
+}: MessageProps) => (
   <div
     className={cn(
-      "group flex w-full max-w-[80%] flex-col gap-2",
+      "group flex w-full max-w-[80%] gap-2",
       from === "user" ? "is-user ml-auto justify-end" : "is-assistant",
       className,
     )}
     {...props}
-  />
+  >
+    {from === "assistant" && avatar && (
+      <div className="mt-0.5 flex-shrink-0">{avatar}</div>
+    )}
+    <div className="flex min-w-0 flex-col gap-2">{children}</div>
+  </div>
 );
 
 export type MessageContentProps = HTMLAttributes<HTMLDivElement>;

@@ -35,7 +35,9 @@ import {
   TextUIPart,
   type ChatStatus,
 } from "ai";
+import { Agent } from "@platypus/schemas";
 import {
+  BotIcon,
   CheckIcon,
   PencilIcon,
   CopyIcon,
@@ -60,6 +62,8 @@ interface ChatMessageProps {
   editContent: string;
   /** Ref to the textarea element for editing */
   editTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  /** Available agents for resolving avatars */
+  agents: Agent[];
   /** Callback to update the edit content */
   setEditContent: (content: string) => void;
   /** Callback when user starts editing a message */
@@ -85,6 +89,7 @@ export const ChatMessage = ({
   isEditing,
   editContent,
   editTextareaRef,
+  agents,
   setEditContent,
   onEditStart,
   onEditCancel,
@@ -94,6 +99,21 @@ export const ChatMessage = ({
   onCopyMessage,
   copiedMessageId,
 }: ChatMessageProps) => {
+  const messageAgentId = (message.metadata as Record<string, unknown>)?.agentId as string | undefined;
+  const messageAgent = messageAgentId ? agents.find((a) => a.id === messageAgentId) : undefined;
+  const assistantAvatar = message.role === "assistant" && (
+    messageAgent?.avatarUrl ? (
+      <img
+        src={messageAgent.avatarUrl}
+        alt=""
+        className="size-6 rounded-full object-cover"
+      />
+    ) : (
+      <div className="flex size-6 items-center justify-center rounded-full bg-muted">
+        <BotIcon className="size-3.5 text-muted-foreground" />
+      </div>
+    )
+  );
   const fileParts = message.parts?.filter(
     (part): part is FileUIPart =>
       part.type === "file" && !part.mediaType?.startsWith("image/"),
@@ -135,7 +155,7 @@ export const ChatMessage = ({
             if (!isFirstTextPart) return null;
 
             return (
-              <Message key={`${message.id}-${i}`} from={message.role}>
+              <Message key={`${message.id}-${i}`} from={message.role} avatar={assistantAvatar}>
                 <MessageContent className="max-w-full">
                   <Textarea
                     ref={editTextareaRef}
@@ -150,7 +170,7 @@ export const ChatMessage = ({
           }
 
           return (
-            <Message key={`${message.id}-${i}`} from={message.role}>
+            <Message key={`${message.id}-${i}`} from={message.role} avatar={assistantAvatar}>
               <MessageContent className="max-w-full">
                 <MessageResponse>{(part as TextUIPart).text}</MessageResponse>
               </MessageContent>
@@ -223,7 +243,7 @@ export const ChatMessage = ({
         ) {
           const filePart = part as FileUIPart;
           return (
-            <Message key={`${message.id}-${i}`} from={message.role}>
+            <Message key={`${message.id}-${i}`} from={message.role} avatar={assistantAvatar}>
               <MessageContent className="max-w-full">
                 <img
                   src={filePart.url}
@@ -261,7 +281,7 @@ export const ChatMessage = ({
           </MessageActions>
         ) : (
           <MessageActions
-            className={message.role === "user" ? "justify-end" : ""}
+            className={message.role === "user" ? "justify-end" : "pl-8"}
           >
             {message.role === "user" && (
               <MessageAction

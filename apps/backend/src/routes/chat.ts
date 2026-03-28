@@ -277,7 +277,7 @@ chat.post(
 
     // 2. Resolve Context (Agent vs Direct) & Provider
     const context = await resolveChatContext(data, orgId, workspaceId);
-    const { provider, agent, resolvedModelId, resolvedMaxSteps } = context;
+    const { provider, agent, resolvedAgentId, resolvedModelId, resolvedMaxSteps } = context;
 
     // 3. Initialize Model
     const [aiProvider, model] = createModel(provider, resolvedModelId);
@@ -439,6 +439,8 @@ chat.post(
         prefix: "msg",
         size: 16,
       }),
+      messageMetadata: () =>
+        resolvedAgentId ? { agentId: resolvedAgentId } : undefined,
       onError: (error) => {
         logger.error({ error }, "Chat stream error");
         if (LoadAPIKeyError.isInstance(error)) {

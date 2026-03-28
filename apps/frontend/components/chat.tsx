@@ -402,6 +402,7 @@ export const Chat = ({
                   isEditing={editingMessageId === message.id}
                   editContent={editContent}
                   editTextareaRef={editTextareaRef}
+                  agents={agents}
                   setEditContent={messageEditing.setEditContent}
                   onEditStart={handleMessageEditStart}
                   onEditCancel={handleMessageEditCancel}

@@ -17,6 +17,7 @@ import {
   Timer,
   KanbanSquare,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import useSWR from "swr";
 import { fetcher, joinUrl } from "@/lib/utils";
@@ -129,6 +130,8 @@ const Workspace = () => {
   const { selectedTags, toggleFilterTag } = useChatFilter();
 
   if (
+    !backendUrl ||
+    !user ||
     isLoadingWorkspace ||
     isLoadingAgents ||
     isLoadingChats ||
@@ -138,7 +141,87 @@ const Workspace = () => {
     isLoadingBoards ||
     isLoadingOrg
   ) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex flex-col gap-8 px-4 md:px-8 py-8 pb-32 max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col">
+          <Skeleton className="h-4 w-24 mb-2" />
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-8 rounded" />
+            <Skeleton className="h-9 w-48" />
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Card key={i} className="gap-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-12 mb-1" />
+                <Skeleton className="h-3 w-28" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Agents Section */}
+        <div className="space-y-4">
+          <div className="flex flex-col">
+            <Skeleton className="h-6 w-32 mb-1" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Skills Section */}
+        <div className="space-y-4">
+          <div className="flex flex-col">
+            <Skeleton className="h-6 w-28 mb-1" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Boards Section */}
+        <div className="space-y-4">
+          <div className="flex flex-col">
+            <Skeleton className="h-6 w-28 mb-1" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Schedules Section */}
+        <div className="space-y-4">
+          <div className="flex flex-col">
+            <Skeleton className="h-6 w-32 mb-1" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!workspaceData) {

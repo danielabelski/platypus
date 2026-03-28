@@ -71,7 +71,9 @@ export const ScheduleList = ({
     fetcher,
   );
 
-  const schedules = schedulesData?.results || [];
+  const schedules = [...(schedulesData?.results || [])].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   const handleDeleteClick = (schedule: Schedule) => {
     setScheduleToDelete(schedule);

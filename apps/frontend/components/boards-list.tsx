@@ -52,7 +52,9 @@ export const BoardsList = ({
     fetcher,
   );
 
-  const boards = boardsData?.results || [];
+  const boards = [...(boardsData?.results || [])].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   const handleDeleteClick = (board: KanbanBoard) => {
     setBoardToDelete(board);

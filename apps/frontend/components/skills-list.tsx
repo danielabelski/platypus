@@ -52,7 +52,9 @@ export const SkillsList = ({
     fetcher,
   );
 
-  const skills = skillsData?.results || [];
+  const skills = [...(skillsData?.results || [])].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   const handleDeleteClick = (skill: Skill) => {
     setSkillToDelete(skill);

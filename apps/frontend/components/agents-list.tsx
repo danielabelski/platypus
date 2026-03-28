@@ -125,7 +125,9 @@ export const AgentsList = ({
     fetcher,
   );
 
-  const agents = agentsData?.results || [];
+  const agents = [...(agentsData?.results || [])].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
   const providers = providersData?.results || [];
   const toolSets = toolSetsData?.results || [];
   const skills = skillsData?.results || [];

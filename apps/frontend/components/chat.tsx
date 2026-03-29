@@ -294,11 +294,17 @@ export const Chat = ({
   } = messageEditing;
 
   // Hydrate chat from persisted data on load (or when chatData changes).
+  // Skip if streaming is in progress to avoid overwriting mid-stream messages.
   useEffect(() => {
-    if (chatData?.messages && chatData.messages.length > 0) {
+    if (
+      chatData?.messages &&
+      chatData.messages.length > 0 &&
+      status !== "streaming" &&
+      status !== "submitted"
+    ) {
       setMessages(chatData.messages);
     }
-  }, [chatData, setMessages]);
+  }, [chatData, setMessages, status]);
 
   // Use chat metadata hook
   useChatMetadata(
@@ -324,6 +330,32 @@ export const Chat = ({
   useEffect(() => {
     setSearch(false);
   }, [modelId, providerId]);
+
+  const handleCopyMessage = useCallback(
+    async (content: string, messageId: string) => {
+      try {
+        await navigator.clipboard.writeText(content);
+        toast.info("Copied to clipboard");
+        setCopiedMessageId(messageId);
+        setTimeout(() => setCopiedMessageId(null), 2000);
+      } catch {
+        toast.error("Failed to copy to clipboard");
+      }
+    },
+    [setCopiedMessageId],
+  );
+
+  const handleRegenerate = useCallback(() => {
+    const body = getRequestBody();
+    regenerate({ body });
+  }, [getRequestBody, regenerate]);
+
+  const handleMessageDelete = useCallback(
+    (messageId: string) => {
+      setMessages(messages.filter((m) => m.id !== messageId));
+    },
+    [messages, setMessages],
+  );
 
   // TODO: Ideally show a loading indicator here
   if (isLoading) return null;
@@ -373,15 +405,6 @@ export const Chat = ({
     );
   };
 
-  const handleRegenerate = () => {
-    const body = getRequestBody();
-    regenerate({ body });
-  };
-
-  const handleMessageDelete = (messageId: string) => {
-    setMessages(messages.filter((m) => m.id !== messageId));
-  };
-
   return (
     <div
       className={`relative size-full flex flex-col overflow-hidden h-full ${messages.length === 0 ? "justify-center" : ""}`}
@@ -409,12 +432,7 @@ export const Chat = ({
                   onEditSubmit={handleMessageEditSubmit}
                   onMessageDelete={handleMessageDelete}
                   onRegenerate={handleRegenerate}
-                  onCopyMessage={(content, messageId) => {
-                    navigator.clipboard.writeText(content);
-                    toast.info("Copied to clipboard");
-                    setCopiedMessageId(messageId);
-                    setTimeout(() => setCopiedMessageId(null), 2000);
-                  }}
+                  onCopyMessage={handleCopyMessage}
                   copiedMessageId={copiedMessageId}
                 />
               ))}

@@ -44,7 +44,8 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { type Provider } from "@platypus/schemas";
 import useSWR from "swr";
-import { parseValidationErrors, joinUrl } from "@/lib/utils";
+import { fetcher, parseValidationErrors, joinUrl } from "@/lib/utils";
+import { toast } from "sonner";
 import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
 
@@ -109,9 +110,6 @@ const ProviderForm = ({
   >({});
   const [error, setError] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
-
-  const fetcher = (url: string) =>
-    fetch(url, { credentials: "include" }).then((res) => res.json());
 
   const fetchUrl =
     providerId && user
@@ -296,6 +294,7 @@ const ProviderForm = ({
       }
     } catch (error) {
       console.error("Error saving provider:", error);
+      toast.error("Failed to save provider");
     } finally {
       setIsSubmitting(false);
     }
@@ -330,11 +329,13 @@ const ProviderForm = ({
         }
       } else {
         console.error("Failed to delete provider");
+        toast.error("Failed to delete provider");
         setIsDeleting(false);
         setIsDeleteDialogOpen(false);
       }
     } catch (error) {
       console.error("Error deleting provider:", error);
+      toast.error("Failed to delete provider");
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
     }

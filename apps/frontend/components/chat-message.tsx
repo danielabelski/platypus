@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, memo } from "react";
 import { type PlatypusUIMessage } from "@platypus/backend/src/types";
 import {
   Message,
@@ -82,7 +82,7 @@ interface ChatMessageProps {
   copiedMessageId: string | null;
 }
 
-export const ChatMessage = ({
+export const ChatMessage = memo(function ChatMessage({
   message,
   isLastMessage,
   status,
@@ -98,7 +98,7 @@ export const ChatMessage = ({
   onRegenerate,
   onCopyMessage,
   copiedMessageId,
-}: ChatMessageProps) => {
+}: ChatMessageProps) {
   const messageAgentId = (message.metadata as Record<string, unknown>)
     ?.agentId as string | undefined;
   const messageAgent = messageAgentId
@@ -109,7 +109,7 @@ export const ChatMessage = ({
     (messageAgent?.avatarUrl ? (
       <img
         src={messageAgent.avatarUrl}
-        alt=""
+        alt={messageAgent.name}
         className="size-6 rounded-full object-cover"
       />
     ) : (
@@ -352,4 +352,4 @@ export const ChatMessage = ({
         ))}
     </Fragment>
   );
-};
+});

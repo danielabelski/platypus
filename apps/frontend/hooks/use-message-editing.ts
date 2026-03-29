@@ -4,8 +4,11 @@ import { UIMessage } from "ai";
 export const useMessageEditing = <T extends UIMessage = UIMessage>(
   messages: T[],
   setMessages: (messages: T[]) => void,
-  sendMessage: (message: { text: string }, options?: { body?: any }) => void,
-  getRequestBody: () => any,
+  sendMessage: (
+    message: { text: string },
+    options?: { body?: Record<string, unknown> },
+  ) => void,
+  getRequestBody: () => Record<string, unknown>,
 ) => {
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import { fetcher, joinUrl } from "@/lib/utils";
+import { toast } from "sonner";
 import type { Workspace, ChatListItem, Organization } from "@platypus/schemas";
 import { useAuth } from "@/components/auth-provider";
 import {
@@ -223,6 +224,7 @@ export function AppSidebar() {
       }
     } catch (error) {
       console.error("Error renaming chat:", error);
+      toast.error("Failed to rename chat");
     } finally {
       setIsRenaming(false);
     }
@@ -264,6 +266,7 @@ export function AppSidebar() {
       await revalidateChatList();
     } catch (error) {
       console.error("Error deleting chat:", error);
+      toast.error("Failed to delete chat");
     } finally {
       setIsDeleting(false);
     }
@@ -303,6 +306,7 @@ export function AppSidebar() {
       await revalidateChatList();
     } catch (error) {
       console.error("Error toggling pin status:", error);
+      toast.error("Failed to update pin status");
     } finally {
       setIsTogglingPin(false);
     }
@@ -407,6 +411,7 @@ export function AppSidebar() {
               <button
                 type="button"
                 onClick={() => setSearchInput("")}
+                aria-label="Clear search"
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 <X className="size-4" />

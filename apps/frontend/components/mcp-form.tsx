@@ -25,7 +25,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { type MCP } from "@platypus/schemas";
 import useSWR from "swr";
-import { parseValidationErrors, joinUrl } from "@/lib/utils";
+import { fetcher, parseValidationErrors, joinUrl } from "@/lib/utils";
+import { toast } from "sonner";
 import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
 import { Trash2, Plug, Check, X } from "lucide-react";
@@ -67,8 +68,6 @@ const McpForm = ({
 
   const router = useRouter();
 
-  const fetcher = (url: string) =>
-    fetch(url, { credentials: "include" }).then((res) => res.json());
   const { data: mcp, isLoading } = useSWR<MCP>(
     mcpId && user
       ? joinUrl(
@@ -183,6 +182,7 @@ const McpForm = ({
       }
     } catch (error) {
       console.error("Error saving MCP:", error);
+      toast.error("Failed to save MCP server");
     } finally {
       setIsSubmitting(false);
     }
@@ -208,11 +208,13 @@ const McpForm = ({
         router.push(`/${orgId}/workspace/${workspaceId}/settings/mcp`);
       } else {
         console.error("Failed to delete MCP");
+        toast.error("Failed to delete MCP server");
         setIsDeleting(false);
         setIsDeleteDialogOpen(false);
       }
     } catch (error) {
       console.error("Error deleting MCP:", error);
+      toast.error("Failed to delete MCP server");
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
     }

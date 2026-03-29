@@ -21,12 +21,37 @@ interface WorkspaceData {
   ownerId: string;
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  image: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  role: "user" | "admin";
+  banned: boolean | null;
+  banReason: string | null;
+  banExpires: Date | null;
+}
+
+interface Session {
+  id: string;
+  expiresAt: Date;
+  token: string;
+  createdAt: Date;
+  updatedAt: Date;
+  ipAddress: string | null;
+  userAgent: string | null;
+  userId: string;
+}
+
 interface AuthContextType {
-  user: any | null;
-  session: any | null;
+  user: User | null;
+  session: Session | null;
   isPending: boolean;
   isAuthLoading: boolean;
-  error: any;
+  error: Error | null;
   authClient: ReturnType<typeof createAuthClient>;
   orgMembership: OrgMembership | null;
   isOrgAdmin: boolean;
@@ -129,15 +154,16 @@ export function AuthProvider({
 
   // Computed permissions
   const isOrgAdmin = orgMembership?.role === "admin";
-  const isSuperAdmin = (data?.user as any)?.role === "admin";
+  const isSuperAdmin =
+    (data?.user as unknown as User | undefined)?.role === "admin";
   const isWorkspaceOwner = workspaceData?.ownerId === data?.user?.id;
   const hasWorkspaceAccess = isSuperAdmin || isOrgAdmin || isWorkspaceOwner;
 
   return (
     <AuthContext.Provider
       value={{
-        user: data?.user ?? null,
-        session: data?.session ?? null,
+        user: (data?.user as unknown as User) ?? null,
+        session: (data?.session as unknown as Session) ?? null,
         isPending,
         isAuthLoading:
           isPending ||

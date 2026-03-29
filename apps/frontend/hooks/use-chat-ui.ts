@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-export const useChatUI = (error: any) => {
+export const useChatUI = (error: Error | undefined) => {
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [isAgentInfoDialogOpen, setIsAgentInfoDialogOpen] = useState(false);

@@ -14,13 +14,10 @@ import { UserMenu } from "@/components/user-menu";
 import { ProtectedRoute } from "@/components/protected-route";
 import type { Workspace } from "@platypus/schemas";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ orgId: string; workspaceId: string }>;
-}): Promise<Metadata> {
-  const { orgId, workspaceId } = await params;
-
+async function fetchWorkspace(
+  orgId: string,
+  workspaceId: string,
+): Promise<{ response: Response; workspace: Workspace | null }> {
   const backendUrl =
     process.env.INTERNAL_BACKEND_URL || process.env.BACKEND_URL || "";
   const headersList = await headers();
@@ -32,17 +29,22 @@ export async function generateMetadata({
       },
     },
   );
+  const workspace: Workspace | null = response.ok
+    ? await response.json()
+    : null;
+  return { response, workspace };
+}
 
-  if (!response.ok) {
-    return {
-      title: "Platypus",
-    };
-  }
-
-  const workspace: Workspace = await response.json();
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgId: string; workspaceId: string }>;
+}): Promise<Metadata> {
+  const { orgId, workspaceId } = await params;
+  const { workspace } = await fetchWorkspace(orgId, workspaceId);
 
   return {
-    title: `${workspace.name} | Platypus`,
+    title: workspace ? `${workspace.name} | Platypus` : "Platypus",
   };
 }
 
@@ -54,19 +56,7 @@ export default async function WorkspaceLayout({
   params: Promise<{ orgId: string; workspaceId: string }>;
 }>) {
   const { orgId, workspaceId } = await params;
-
-  // Use internal URL for SSR, fallback to BACKEND_URL for local dev
-  const backendUrl =
-    process.env.INTERNAL_BACKEND_URL || process.env.BACKEND_URL || "";
-  const headersList = await headers();
-  const response = await fetch(
-    joinUrl(backendUrl, `/organizations/${orgId}/workspaces/${workspaceId}`),
-    {
-      headers: {
-        cookie: headersList.get("cookie") || "",
-      },
-    },
-  );
+  const { response } = await fetchWorkspace(orgId, workspaceId);
 
   if (response.status === 404) {
     notFound();

@@ -75,7 +75,7 @@ export function KanbanBoard({
   const { data, error, mutate } = useSWR<KanbanBoardState>(
     backendUrl && user ? joinUrl(baseUrl, "/state") : null,
     fetcher,
-    { refreshInterval: 10000 },
+    { refreshInterval: 10000, refreshWhenHidden: false },
   );
 
   const { data: boardsData } = useSWR<{
@@ -543,6 +543,7 @@ export function KanbanBoard({
         </div>
         <Link
           href={`/${orgId}/workspace/${workspaceId}/boards/${boardId}/settings`}
+          aria-label="Board settings"
           className="p-2 hover:bg-muted rounded-md transition-colors shrink-0"
         >
           <Settings className="h-5 w-5 text-muted-foreground" />

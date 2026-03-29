@@ -40,6 +40,7 @@ import {
 } from "@platypus/schemas";
 import useSWR, { useSWRConfig } from "swr";
 import { fetcher, parseValidationErrors, joinUrl } from "@/lib/utils";
+import { toast } from "sonner";
 import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
 
@@ -369,6 +370,7 @@ const AgentForm = ({
       }
     } catch (error) {
       console.error("Error saving agent:", error);
+      toast.error("Failed to save agent");
     } finally {
       setIsSubmitting(false);
     }
@@ -394,11 +396,13 @@ const AgentForm = ({
         router.push(`/${orgId}/workspace/${workspaceId}`);
       } else {
         console.error("Failed to delete agent");
+        toast.error("Failed to delete agent");
         setIsDeleting(false);
         setIsDeleteDialogOpen(false);
       }
     } catch (error) {
       console.error("Error deleting agent:", error);
+      toast.error("Failed to delete agent");
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
     }

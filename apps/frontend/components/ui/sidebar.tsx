@@ -93,6 +93,14 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
   }, [isMobile, setOpen, setOpenMobile]);
 
+  // Clean up Radix Dialog's body styles when the provider unmounts while the
+  // mobile Sheet is still open (e.g. navigating away from the workspace).
+  React.useEffect(() => {
+    return () => {
+      document.body.style.removeProperty("pointer-events");
+    };
+  }, []);
+
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

@@ -294,17 +294,23 @@ export const Chat = ({
   } = messageEditing;
 
   // Hydrate chat from persisted data on load (or when chatData changes).
-  // Skip if streaming is in progress to avoid overwriting mid-stream messages.
+  // We use a ref for status so that this effect only fires when chatData
+  // actually changes (e.g. initial fetch or SWR revalidation), NOT when
+  // the streaming status transitions. Without this, ending a stream would
+  // trigger the effect and overwrite the fresh messages with stale SWR data.
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
   useEffect(() => {
     if (
       chatData?.messages &&
       chatData.messages.length > 0 &&
-      status !== "streaming" &&
-      status !== "submitted"
+      statusRef.current !== "streaming" &&
+      statusRef.current !== "submitted"
     ) {
       setMessages(chatData.messages);
     }
-  }, [chatData, setMessages, status]);
+  }, [chatData, setMessages]);
 
   // Use chat metadata hook
   useChatMetadata(

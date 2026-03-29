@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import { db } from "../index.ts";
 import { agent as agentTable } from "../db/schema.ts";
 import { agentCreateSchema, agentUpdateSchema } from "@platypus/schemas";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { dedupeArray } from "../utils.ts";
 import { requireAuth } from "../middleware/authentication.ts";
 import {
@@ -121,13 +121,16 @@ agent.get(
   requireWorkspaceAccess,
   async (c) => {
     const agentId = c.req.param("agentId");
+    const workspaceId = c.req.param("workspaceId")!;
     const baseUrl =
       process.env.BETTER_AUTH_URL ||
       `http://localhost:${process.env.PORT || 4000}`;
     const record = await db
       .select()
       .from(agentTable)
-      .where(eq(agentTable.id, agentId))
+      .where(
+        and(eq(agentTable.id, agentId), eq(agentTable.workspaceId, workspaceId)),
+      )
       .limit(1);
     if (record.length === 0) {
       return c.json({ message: "Agent not found" }, 404);
@@ -180,7 +183,9 @@ agent.put(
         ...data,
         updatedAt: new Date(),
       })
-      .where(eq(agentTable.id, agentId))
+      .where(
+        and(eq(agentTable.id, agentId), eq(agentTable.workspaceId, workspaceId)),
+      )
       .returning();
     return c.json(agentWithAvatarUrl(record[0], baseUrl), 200);
   },
@@ -247,7 +252,9 @@ agent.post(
     const existing = await db
       .select({ avatarKey: agentTable.avatarKey })
       .from(agentTable)
-      .where(eq(agentTable.id, agentId))
+      .where(
+        and(eq(agentTable.id, agentId), eq(agentTable.workspaceId, workspaceId)),
+      )
       .limit(1);
 
     if (existing[0]?.avatarKey) {
@@ -265,7 +272,9 @@ agent.post(
     const record = await db
       .update(agentTable)
       .set({ avatarKey: key, updatedAt: new Date() })
-      .where(eq(agentTable.id, agentId))
+      .where(
+        and(eq(agentTable.id, agentId), eq(agentTable.workspaceId, workspaceId)),
+      )
       .returning();
 
     return c.json(agentWithAvatarUrl(record[0], baseUrl));
@@ -280,6 +289,7 @@ agent.delete(
   requireWorkspaceAccess,
   async (c) => {
     const agentId = c.req.param("agentId");
+    const workspaceId = c.req.param("workspaceId")!;
     const baseUrl =
       process.env.BETTER_AUTH_URL ||
       `http://localhost:${process.env.PORT || 4000}`;
@@ -287,7 +297,9 @@ agent.delete(
     const existing = await db
       .select({ avatarKey: agentTable.avatarKey })
       .from(agentTable)
-      .where(eq(agentTable.id, agentId))
+      .where(
+        and(eq(agentTable.id, agentId), eq(agentTable.workspaceId, workspaceId)),
+      )
       .limit(1);
 
     if (existing[0]?.avatarKey) {
@@ -302,7 +314,9 @@ agent.delete(
     const record = await db
       .update(agentTable)
       .set({ avatarKey: null, updatedAt: new Date() })
-      .where(eq(agentTable.id, agentId))
+      .where(
+        and(eq(agentTable.id, agentId), eq(agentTable.workspaceId, workspaceId)),
+      )
       .returning();
 
     return c.json(agentWithAvatarUrl(record[0], baseUrl));
@@ -317,11 +331,14 @@ agent.delete(
   requireWorkspaceAccess,
   async (c) => {
     const agentId = c.req.param("agentId");
+    const workspaceId = c.req.param("workspaceId")!;
 
     const existing = await db
       .select({ avatarKey: agentTable.avatarKey })
       .from(agentTable)
-      .where(eq(agentTable.id, agentId))
+      .where(
+        and(eq(agentTable.id, agentId), eq(agentTable.workspaceId, workspaceId)),
+      )
       .limit(1);
 
     if (existing[0]?.avatarKey) {
@@ -333,7 +350,11 @@ agent.delete(
       }
     }
 
-    await db.delete(agentTable).where(eq(agentTable.id, agentId));
+    await db
+      .delete(agentTable)
+      .where(
+        and(eq(agentTable.id, agentId), eq(agentTable.workspaceId, workspaceId)),
+      );
     return c.json({ message: "Agent deleted" });
   },
 );

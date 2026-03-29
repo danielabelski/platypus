@@ -1,5 +1,6 @@
 import { ToolLoopAgent, tool, readUIMessageStream, type Tool } from "ai";
 import { z } from "zod";
+import { logger } from "../logger.ts";
 
 /**
  * Options for creating a sub-agent tool.
@@ -152,9 +153,9 @@ export const createSubAgentTools = async (
 
       tools[toolName] = tool;
     } catch (error) {
-      console.error(
-        `Failed to create sub-agent tool for "${subAgent.name}":`,
-        error,
+      logger.error(
+        { error, subAgentName: subAgent.name, subAgentId: subAgent.id },
+        `Failed to create sub-agent tool for "${subAgent.name}"`,
       );
       // Continue with other sub-agents even if one fails
     }

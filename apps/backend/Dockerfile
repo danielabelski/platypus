@@ -17,13 +17,12 @@ FROM base AS tester
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy pruned package.json files
+# Copy pruned package.json files and lockfile
 COPY --from=builder /app/out/json/ .
-# Remove the lockfile to force re-resolution of dependencies.
-RUN rm -f pnpm-lock.yaml
+COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 
 # Install ALL dependencies (including devDependencies for testing)
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Copy source code
 COPY --from=builder /app/out/full/ .
@@ -36,7 +35,13 @@ FROM base AS prod-deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY --from=builder /app/out/json/ .
-RUN pnpm install --prod
+COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+# Disable auto-install of peer dependencies to avoid pulling in
+# unnecessary packages like next, react, react-dom from better-auth
+RUN echo "auto-install-peers=false" > .npmrc
+RUN pnpm install --prod && \
+    pnpm store prune && \
+    rm -rf /tmp/* /root/.cache
 
 FROM base AS runner
 WORKDIR /app
@@ -44,11 +49,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Don't run production as root
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 hono
-
-# Create data directory for file storage
-RUN mkdir -p /data/files && chown hono:nodejs /data/files
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 hono && \
+    mkdir -p /data/files && chown hono:nodejs /data/files
 
 # Copy prod dependencies (includes root node_modules and workspace node_modules)
 COPY --from=prod-deps /app .

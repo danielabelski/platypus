@@ -243,7 +243,14 @@ chat.post(
     const workspace = workspaceRecord[0];
 
     // 2. Resolve Context (Agent vs Direct) & Provider
-    const context = await resolveChatContext(data, orgId, workspaceId);
+    let context: Awaited<ReturnType<typeof resolveChatContext>>;
+    try {
+      context = await resolveChatContext(data, orgId, workspaceId);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to resolve chat context";
+      return c.json({ message }, 400);
+    }
     const {
       provider,
       agent,

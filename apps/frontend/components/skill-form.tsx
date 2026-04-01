@@ -270,7 +270,7 @@ const SkillForm = ({
             <FieldDescription className="mb-4">
               Select which agents this skill is enabled for.
             </FieldDescription>
-            <FieldGroup className="grid grid-cols-2 gap-4">
+            <FieldGroup className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {agents.map((agent) => (
                 <Field key={agent.id} orientation="horizontal">
                   <Switch

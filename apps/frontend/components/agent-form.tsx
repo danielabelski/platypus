@@ -602,7 +602,7 @@ const AgentForm = ({
                 return sortedCategories.map((category) => (
                   <FieldSet key={category} className="mb-4">
                     <FieldLegend variant="label">{category}</FieldLegend>
-                    <FieldGroup className="grid grid-cols-2 gap-4">
+                    <FieldGroup className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {toolSetsByCategory[category].map((toolSet) => (
                         <Field key={toolSet.id} orientation="horizontal">
                           <Switch
@@ -648,7 +648,7 @@ const AgentForm = ({
               <CardTitle>Skills</CardTitle>
             </CardHeader>
             <CardContent>
-              <FieldGroup className="grid grid-cols-2 gap-4">
+              <FieldGroup className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {skills.map((skill) => (
                   <Field key={skill.id} orientation="horizontal">
                     <Switch
@@ -696,7 +696,7 @@ const AgentForm = ({
                 running as a sub-agent, these agents will not be able to
                 delegate further.
               </FieldDescription>
-              <FieldGroup className="grid grid-cols-2 gap-4">
+              <FieldGroup className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {agents
                   .filter((a) => a.id !== agentId) // Only exclude self-assignment
                   .map((agent) => (

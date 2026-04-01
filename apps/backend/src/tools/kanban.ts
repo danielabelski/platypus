@@ -11,10 +11,13 @@ import {
 } from "../db/schema.ts";
 import { user } from "../db/auth-schema.ts";
 import { calculateCardPosition } from "../utils/kanban-positioning.ts";
+import { buildResourceUrl } from "../utils/resource-url.ts";
 
 export function createKanbanTools(
   workspaceId: string,
   agentId: string,
+  orgId: string,
+  frontendUrl: string | undefined,
 ): Record<string, Tool> {
   /** Returns true only if the card exists AND belongs to a board in this workspace. */
   async function verifyCard(cardId: string): Promise<boolean> {
@@ -77,6 +80,19 @@ export function createKanbanTools(
       .where(eq(kanbanCardCommentTable.id, commentId))
       .limit(1);
     return result.length > 0;
+  }
+
+  async function getBoardIdForCard(cardId: string): Promise<string | undefined> {
+    const result = await db
+      .select({ boardId: kanbanColumnTable.boardId })
+      .from(kanbanCardTable)
+      .innerJoin(
+        kanbanColumnTable,
+        eq(kanbanCardTable.columnId, kanbanColumnTable.id),
+      )
+      .where(eq(kanbanCardTable.id, cardId))
+      .limit(1);
+    return result[0]?.boardId;
   }
 
   const listBoards = tool({
@@ -164,10 +180,18 @@ export function createKanbanTools(
         cards: cardsByColumn.get(col.id) ?? [],
       }));
 
+      const url = buildResourceUrl(
+        frontendUrl,
+        orgId,
+        workspaceId,
+        `boards/${boardId}`,
+      );
+
       return {
         board: boardRecord[0],
         columns: columnsWithCards,
         labels: boardRecord[0].labels,
+        ...(url && { url }),
       };
     },
   });
@@ -189,7 +213,12 @@ export function createKanbanTools(
         .where(eq(kanbanCardTable.id, cardId))
         .limit(1);
 
-      return card[0];
+      const boardId = await getBoardIdForCard(cardId);
+      const url = boardId
+        ? buildResourceUrl(frontendUrl, orgId, workspaceId, `boards/${boardId}`)
+        : undefined;
+
+      return { ...card[0], ...(url && { url }) };
     },
   });
 
@@ -243,7 +272,18 @@ export function createKanbanTools(
         if (record.length === 0) {
           return { error: "Card not found" };
         }
-        return record[0];
+
+        const boardId = await getBoardIdForCard(cardId);
+        const url = boardId
+          ? buildResourceUrl(
+              frontendUrl,
+              orgId,
+              workspaceId,
+              `boards/${boardId}`,
+            )
+          : undefined;
+
+        return { ...record[0], ...(url && { url }) };
       }
 
       // Create new card
@@ -283,7 +323,17 @@ export function createKanbanTools(
         })
         .returning();
 
-      return record[0];
+      const boardId = await getBoardIdForCard(id);
+      const url = boardId
+        ? buildResourceUrl(
+            frontendUrl,
+            orgId,
+            workspaceId,
+            `boards/${boardId}`,
+          )
+        : undefined;
+
+      return { ...record[0], ...(url && { url }) };
     },
   });
 
@@ -368,7 +418,17 @@ export function createKanbanTools(
         .where(eq(kanbanCardTable.id, cardId))
         .limit(1);
 
-      return updated[0];
+      const boardId = await getBoardIdForCard(cardId);
+      const url = boardId
+        ? buildResourceUrl(
+            frontendUrl,
+            orgId,
+            workspaceId,
+            `boards/${boardId}`,
+          )
+        : undefined;
+
+      return { ...updated[0], ...(url && { url }) };
     },
   });
 

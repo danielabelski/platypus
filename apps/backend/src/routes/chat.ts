@@ -263,7 +263,13 @@ chat.post(
     const [aiProvider, model] = createModel(provider, resolvedModelId);
 
     // 4. Load Tools (Static & MCP)
-    const { tools, mcpClients } = await loadTools(agent, workspaceId);
+    const frontendUrl = process.env.FRONTEND_URL;
+    const { tools, mcpClients } = await loadTools(
+      agent,
+      workspaceId,
+      orgId,
+      frontendUrl,
+    );
 
     // 4b. MCP client lifecycle management - close on abort to prevent leaks
     let mcpClientsClosed = false;
@@ -298,6 +304,7 @@ chat.post(
       agent,
       orgId,
       workspaceId,
+      frontendUrl,
     );
     Object.assign(tools, subAgentTools);
 

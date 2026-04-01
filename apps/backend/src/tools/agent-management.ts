@@ -6,11 +6,14 @@ import { skill as skillTable, agent as agentTable } from "../db/schema.ts";
 import { dedupeArray } from "../utils.ts";
 import { validateSubAgentAssignment } from "../services/sub-agent-validation.ts";
 import { getStorage } from "../storage/index.ts";
+import { buildResourceUrl } from "../utils/resource-url.ts";
 
 const skillNameRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export function createAgentManagementTools(
   workspaceId: string,
+  orgId: string,
+  frontendUrl: string | undefined,
 ): Record<string, Tool> {
   // ---------------------------------------------------------------------------
   // Skill tools
@@ -55,7 +58,14 @@ export function createAgentManagementTools(
         return { error: "Skill not found" };
       }
 
-      return result[0];
+      const url = buildResourceUrl(
+        frontendUrl,
+        orgId,
+        workspaceId,
+        `skills/${result[0].id}`,
+      );
+
+      return { ...result[0], ...(url && { url }) };
     },
   });
 
@@ -96,7 +106,14 @@ export function createAgentManagementTools(
         })
         .returning();
 
-      return record[0];
+      const url = buildResourceUrl(
+        frontendUrl,
+        orgId,
+        workspaceId,
+        `skills/${record[0].id}`,
+      );
+
+      return { ...record[0], ...(url && { url }) };
     },
   });
 
@@ -221,7 +238,14 @@ export function createAgentManagementTools(
         return { error: "Agent not found" };
       }
 
-      return result[0];
+      const url = buildResourceUrl(
+        frontendUrl,
+        orgId,
+        workspaceId,
+        `agents/${agentId}`,
+      );
+
+      return { ...result[0], ...(url && { url }) };
     },
   });
 
@@ -291,21 +315,34 @@ export function createAgentManagementTools(
           })
           .returning();
 
-        const { avatarKey: _, ...rest } = record[0];
-        return rest;
+        const { avatarKey: _a, ...restA } = record[0];
+        const urlA = buildResourceUrl(
+          frontendUrl,
+          orgId,
+          workspaceId,
+          `agents/${newId}`,
+        );
+        return { ...restA, ...(urlA && { url: urlA }) };
       }
 
+      const id = nanoid();
       const record = await db
         .insert(agentTable)
         .values({
-          id: nanoid(),
+          id,
           workspaceId,
           ...data,
         })
         .returning();
 
       const { avatarKey: _, ...rest } = record[0];
-      return rest;
+      const url = buildResourceUrl(
+        frontendUrl,
+        orgId,
+        workspaceId,
+        `agents/${id}`,
+      );
+      return { ...rest, ...(url && { url }) };
     },
   });
 
@@ -389,7 +426,13 @@ export function createAgentManagementTools(
       }
 
       const { avatarKey: _, ...rest } = record[0];
-      return rest;
+      const url = buildResourceUrl(
+        frontendUrl,
+        orgId,
+        workspaceId,
+        `agents/${agentId}`,
+      );
+      return { ...rest, ...(url && { url }) };
     },
   });
 

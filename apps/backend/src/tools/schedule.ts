@@ -8,8 +8,13 @@ import {
   agent as agentTable,
 } from "../db/schema.ts";
 import { validateCronExpression } from "../utils/cron.ts";
+import { buildResourceUrl } from "../utils/resource-url.ts";
 
-export function createScheduleTools(workspaceId: string): Record<string, Tool> {
+export function createScheduleTools(
+  workspaceId: string,
+  orgId: string,
+  frontendUrl: string | undefined,
+): Record<string, Tool> {
   const listAgents = tool({
     description:
       "List all agents available in this workspace. Returns agent IDs, names, and descriptions. Use this to find agent IDs when creating or editing schedules.",
@@ -236,9 +241,17 @@ export function createScheduleTools(workspaceId: string): Record<string, Tool> {
           .where(eq(scheduleTable.id, scheduleId))
           .returning();
 
+        const url = buildResourceUrl(
+          frontendUrl,
+          orgId,
+          workspaceId,
+          `schedules/${scheduleId}`,
+        );
+
         return {
           success: true,
           schedule: record[0],
+          ...(url && { url }),
         };
       }
 
@@ -310,9 +323,17 @@ export function createScheduleTools(workspaceId: string): Record<string, Tool> {
         })
         .returning();
 
+      const url = buildResourceUrl(
+        frontendUrl,
+        orgId,
+        workspaceId,
+        `schedules/${id}`,
+      );
+
       return {
         success: true,
         schedule: record[0],
+        ...(url && { url }),
       };
     },
   });

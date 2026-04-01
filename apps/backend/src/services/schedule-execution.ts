@@ -106,7 +106,14 @@ export const triggerSchedule = async (
   const [, model] = createModel(provider as Provider, agent.modelId);
 
   // 5. Load tools
-  const { tools, mcpClients } = await loadTools(agent, workspaceId);
+  const orgId = workspace.organizationId;
+  const frontendUrl = process.env.FRONTEND_URL;
+  const { tools, mcpClients } = await loadTools(
+    agent,
+    workspaceId,
+    orgId,
+    frontendUrl,
+  );
 
   // 6. Load skills
   const skills = await loadSkills(agent, workspaceId);

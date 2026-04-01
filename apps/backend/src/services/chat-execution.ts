@@ -212,6 +212,8 @@ export const resolveChatContext = async (
 export const loadTools = async (
   agent: typeof agentTable.$inferSelect | undefined,
   workspaceId: string,
+  orgId: string,
+  frontendUrl: string | undefined,
 ): Promise<{ tools: Record<string, Tool>; mcpClients: any[] }> => {
   const tools: Record<string, Tool> = {};
   const mcpClients: any[] = [];
@@ -225,7 +227,7 @@ export const loadTools = async (
       const toolSet = getToolSet(toolSetId);
       const resolvedTools =
         typeof toolSet.tools === "function"
-          ? toolSet.tools({ workspaceId, agentId: agent.id })
+          ? toolSet.tools({ workspaceId, agentId: agent.id, orgId, frontendUrl })
           : toolSet.tools;
       Object.assign(tools, resolvedTools);
     } catch (error) {
@@ -385,6 +387,7 @@ export const loadSubAgents = async (
   agent: typeof agentTable.$inferSelect | undefined,
   orgId: string,
   workspaceId: string,
+  frontendUrl: string | undefined,
 ): Promise<{
   subAgents: Array<{ id: string; name: string; description?: string | null }>;
   subAgentTools: Record<string, Tool>;
@@ -438,6 +441,8 @@ export const loadSubAgents = async (
       const { tools: subTools } = await loadTools(
         subAgentRecord ?? ({ id: subAgentId, toolSetIds } as any),
         workspaceId,
+        orgId,
+        frontendUrl,
       );
       return subTools;
     },

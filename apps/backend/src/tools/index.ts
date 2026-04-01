@@ -12,7 +12,12 @@ import { createScheduleTools } from "./schedule.ts";
 import { createAgentManagementTools } from "./agent-management.ts";
 import { createNotificationTools } from "./notification.ts";
 
-export type ToolSetContext = { workspaceId: string; agentId: string };
+export type ToolSetContext = {
+  workspaceId: string;
+  agentId: string;
+  orgId: string;
+  frontendUrl: string | undefined;
+};
 
 type ToolSet = {
   id: string;
@@ -87,7 +92,8 @@ registerToolSet("kanban", {
   name: "Kanban",
   category: "Productivity",
   description: "Manage kanban boards in this workspace",
-  tools: ({ workspaceId, agentId }) => createKanbanTools(workspaceId, agentId),
+  tools: ({ workspaceId, agentId, orgId, frontendUrl }) =>
+    createKanbanTools(workspaceId, agentId, orgId, frontendUrl),
 });
 
 registerToolSet("schedule", {
@@ -95,14 +101,16 @@ registerToolSet("schedule", {
   category: "Automation",
   description:
     "Manage scheduled tasks including listing agents, creating, editing, and viewing schedules",
-  tools: ({ workspaceId }) => createScheduleTools(workspaceId),
+  tools: ({ workspaceId, orgId, frontendUrl }) =>
+    createScheduleTools(workspaceId, orgId, frontendUrl),
 });
 
 registerToolSet("agent-management", {
   name: "Agent Management",
   category: "Productivity",
   description: "Create, update, and delete agents and skills in this workspace",
-  tools: ({ workspaceId }) => createAgentManagementTools(workspaceId),
+  tools: ({ workspaceId, orgId, frontendUrl }) =>
+    createAgentManagementTools(workspaceId, orgId, frontendUrl),
 });
 
 registerToolSet("notifications", {

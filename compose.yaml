@@ -28,6 +28,7 @@ services:
       ADMIN_PASSWORD: "admin123"
       STORAGE_BACKEND: disk
       STORAGE_DISK_PATH: /data/files
+      FRONTEND_URL: "http://localhost:3000"
     volumes:
       - ./data:/data
     ports:

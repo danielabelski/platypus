@@ -47,6 +47,7 @@ The fastest way to get Platypus running is using Docker Compose.
     - `TIMEZONE` (optional): IANA timezone name for e.g., "America/New_York", "Europe/London". Defaults to UTC.
     - `MEMORY_EXTRACTION_INTERVAL_MS` (optional): How often (in milliseconds) the background memory extraction job runs. Defaults to `300000` (5 minutes).
     - `SCHEDULE_MAX_CONCURRENT` (optional): Maximum number of schedules to execute in parallel. Defaults to `5`.
+    - `FRONTEND_URL` (optional): The URL of the frontend application, used for generating resource links in tool responses. Defaults to `http://localhost:3000`.
 
     ```yaml
     services:
@@ -56,6 +57,7 @@ The fastest way to get Platypus running is using Docker Compose.
           ADMIN_EMAIL: "admin@example.com"
           ADMIN_PASSWORD: "your-secure-password-here"
           TIMEZONE: "UTC"
+          FRONTEND_URL: "http://localhost:3000"
     ```
 
 2.  **Start the application:**
@@ -101,12 +103,14 @@ The fastest way to get Platypus running is using Docker Compose.
     - `ADMIN_EMAIL`: The email address for the initial admin user.
     - `ADMIN_PASSWORD`: A secure password for the initial admin user.
     - `TIMEZONE` (optional): IANA timezone name for e.g., "America/New_York", "Europe/London". Defaults to UTC.
+    - `FRONTEND_URL` (optional): The URL of the frontend application, used for generating resource links in tool responses. Defaults to `http://localhost:3001`.
 
     ```env
     BETTER_AUTH_SECRET: "your-secure-random-string-here"
     ADMIN_EMAIL: "admin@example.com"
     ADMIN_PASSWORD: "your-secure-password-here"
     TIMEZONE: "UTC"
+    FRONTEND_URL: "http://localhost:3001"
     ```
 
 3.  **Start Development Server:**

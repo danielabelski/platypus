@@ -20,6 +20,7 @@ WORKDIR /app
 # Copy pruned package.json files and lockfile
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY .npmrc ./
 
 # Install ALL dependencies (including devDependencies for testing)
 RUN pnpm install --frozen-lockfile
@@ -36,9 +37,10 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY .npmrc ./
 # Disable auto-install of peer dependencies to avoid pulling in
 # unnecessary packages like next, react, react-dom from better-auth
-RUN echo "auto-install-peers=false" > .npmrc
+RUN echo "auto-install-peers=false" >> .npmrc
 RUN pnpm install --prod && \
     pnpm store prune && \
     rm -rf /tmp/* /root/.cache

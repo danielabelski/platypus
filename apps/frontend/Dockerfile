@@ -12,7 +12,7 @@ WORKDIR /app
 RUN corepack enable pnpm
 
 # Copy monorepo files
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json turbo.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json turbo.json .npmrc ./
 # Copy package.json files for all workspaces
 COPY apps/frontend/package.json ./apps/frontend/
 COPY apps/backend/package.json ./apps/backend/

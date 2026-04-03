@@ -292,10 +292,18 @@ const mcpBaseSchema = z.object({
   workspaceId: z.string(),
   name: z.string().min(3).max(30),
   url: z.url(),
-  authType: z.enum(["None", "Bearer"]),
+  authType: z.enum(["None", "Bearer", "OAuth"]),
   bearerToken: z.string().optional(),
+  oauthClientId: z.string().optional(),
+  oauthClientSecret: z.string().optional(),
+  oauthAuthorized: z.boolean().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
+});
+
+export const mcpOauthCallbackSchema = z.object({
+  code: z.string(),
+  state: z.string(),
 });
 
 export const mcpSchema = mcpBaseSchema.refine(
@@ -312,6 +320,8 @@ export const mcpCreateSchema = mcpBaseSchema
     url: true,
     authType: true,
     bearerToken: true,
+    oauthClientId: true,
+    oauthClientSecret: true,
   })
   .refine(mcpBearerTokenRefine.validator, mcpBearerTokenRefine.params);
 
@@ -321,6 +331,8 @@ export const mcpUpdateSchema = mcpBaseSchema
     url: true,
     authType: true,
     bearerToken: true,
+    oauthClientId: true,
+    oauthClientSecret: true,
   })
   .refine(mcpBearerTokenRefine.validator, mcpBearerTokenRefine.params);
 
@@ -330,7 +342,22 @@ export const mcpTestSchema = mcpBaseSchema
     authType: true,
     bearerToken: true,
   })
-  .refine(mcpBearerTokenRefine.validator, mcpBearerTokenRefine.params);
+  .extend({
+    mcpId: z.string().optional(),
+  })
+  .refine(mcpBearerTokenRefine.validator, mcpBearerTokenRefine.params)
+  .refine(
+    (data) => {
+      if (data.authType === "OAuth") {
+        return data.mcpId && data.mcpId.length > 0;
+      }
+      return true;
+    },
+    {
+      message: "mcpId is required when auth type is OAuth",
+      path: ["mcpId"],
+    },
+  );
 
 // Provider
 

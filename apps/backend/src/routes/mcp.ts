@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { sValidator } from "@hono/standard-validator";
 import { nanoid } from "nanoid";
-import { experimental_createMCPClient as createMCPClient } from "@ai-sdk/mcp";
+import {
+  experimental_createMCPClient as createMCPClient,
+  auth as mcpAuth,
+} from "@ai-sdk/mcp";
 import { db } from "../index.ts";
 import { mcp as mcpTable } from "../db/schema.ts";
 import {
@@ -17,8 +20,40 @@ import {
 } from "../middleware/authorization.ts";
 import type { Variables } from "../server.ts";
 import { logger } from "../logger.ts";
+import {
+  DatabaseOAuthClientProvider,
+  oauthFetchFn,
+  buildOAuthCallbackUrl,
+  buildMcpTransportConfig,
+  type McpRecord,
+} from "../services/mcp-oauth-provider.ts";
+
+/** Fields to null-out when clearing OAuth tokens. */
+const OAUTH_TOKEN_CLEAR_FIELDS = {
+  oauthAccessToken: null,
+  oauthRefreshToken: null,
+  oauthTokenExpiresAt: null,
+  oauthScope: null,
+} as const;
 
 const mcp = new Hono<{ Variables: Variables }>();
+
+/** Strips sensitive OAuth fields and adds computed oauthAuthorized flag */
+const sanitizeMcpResponse = (record: McpRecord) => {
+  const {
+    oauthAccessToken,
+    oauthRefreshToken,
+    oauthClientSecret,
+    oauthTokenExpiresAt,
+    oauthScope,
+    ...rest
+  } = record;
+  return {
+    ...rest,
+    oauthAuthorized:
+      record.authType === "OAuth" ? !!oauthAccessToken : undefined,
+  };
+};
 
 /** Create a new MCP (admin only) */
 mcp.post(
@@ -36,7 +71,7 @@ mcp.post(
         ...data,
       })
       .returning();
-    return c.json(record[0], 201);
+    return c.json(sanitizeMcpResponse(record[0]), 201);
   },
 );
 
@@ -52,7 +87,7 @@ mcp.get(
       .select()
       .from(mcpTable)
       .where(eq(mcpTable.workspaceId, workspaceId));
-    return c.json({ results });
+    return c.json({ results: results.map(sanitizeMcpResponse) });
   },
 );
 
@@ -73,7 +108,7 @@ mcp.get(
     if (record.length === 0) {
       return c.json({ message: "MCP not found" }, 404);
     }
-    return c.json(record[0]);
+    return c.json(sanitizeMcpResponse(record[0]));
   },
 );
 
@@ -88,10 +123,25 @@ mcp.put(
     const mcpId = c.req.param("mcpId");
     const workspaceId = c.req.param("workspaceId")!;
     const data = c.req.valid("json");
+
+    // If URL is changing, clear stored OAuth tokens (they're server-specific)
+    const existing = await db
+      .select()
+      .from(mcpTable)
+      .where(and(eq(mcpTable.id, mcpId), eq(mcpTable.workspaceId, workspaceId)))
+      .limit(1);
+
+    const urlChanged = existing.length > 0 && existing[0].url !== data.url;
+
     const record = await db
       .update(mcpTable)
       .set({
         ...data,
+        ...(urlChanged && {
+          ...OAUTH_TOKEN_CLEAR_FIELDS,
+          oauthClientId: null,
+          oauthClientSecret: null,
+        }),
         updatedAt: new Date(),
       })
       .where(and(eq(mcpTable.id, mcpId), eq(mcpTable.workspaceId, workspaceId)))
@@ -99,7 +149,7 @@ mcp.put(
     if (record.length === 0) {
       return c.json({ message: "MCP not found" }, 404);
     }
-    return c.json(record[0], 200);
+    return c.json(sanitizeMcpResponse(record[0]), 200);
   },
 );
 
@@ -135,16 +185,49 @@ mcp.post(
 
     let mcpClient;
     try {
-      mcpClient = await createMCPClient({
-        transport: {
-          type: "http",
-          url: data.url,
-          headers:
-            data.authType === "Bearer"
-              ? { Authorization: `Bearer ${data.bearerToken}` }
-              : undefined,
-        },
-      });
+      // For OAuth, use authProvider with stored tokens
+      if (data.authType === "OAuth" && data.mcpId) {
+        const workspaceId = c.req.param("workspaceId")!;
+        const mcpRecord = await db
+          .select()
+          .from(mcpTable)
+          .where(
+            and(
+              eq(mcpTable.id, data.mcpId),
+              eq(mcpTable.workspaceId, workspaceId),
+            ),
+          )
+          .limit(1);
+
+        if (mcpRecord.length === 0) {
+          return c.json({ success: false, error: "MCP not found" }, 404);
+        }
+
+        if (!mcpRecord[0].oauthAccessToken) {
+          return c.json(
+            {
+              success: false,
+              error: "MCP not yet authorized. Click Authorize first.",
+            },
+            400,
+          );
+        }
+
+        mcpClient = await createMCPClient({
+          transport: buildMcpTransportConfig(mcpRecord[0]),
+        });
+      } else {
+        mcpClient = await createMCPClient({
+          transport: {
+            type: "http",
+            url: data.url,
+            headers:
+              data.authType === "Bearer"
+                ? { Authorization: `Bearer ${data.bearerToken}` }
+                : undefined,
+          },
+        });
+      }
 
       // Fetch available tools
       const mcpTools = await mcpClient.tools();
@@ -193,6 +276,95 @@ mcp.post(
         400,
       );
     }
+  },
+);
+
+/** Initiate OAuth authorization for an MCP */
+mcp.post(
+  "/:mcpId/oauth/authorize",
+  requireAuth,
+  requireOrgAccess(),
+  requireWorkspaceAccess,
+  async (c) => {
+    const mcpId = c.req.param("mcpId");
+    const workspaceId = c.req.param("workspaceId")!;
+
+    const mcpRecord = await db
+      .select()
+      .from(mcpTable)
+      .where(and(eq(mcpTable.id, mcpId), eq(mcpTable.workspaceId, workspaceId)))
+      .limit(1);
+
+    if (mcpRecord.length === 0) {
+      return c.json({ message: "MCP not found" }, 404);
+    }
+
+    if (mcpRecord[0].authType !== "OAuth") {
+      return c.json({ message: "MCP auth type is not OAuth" }, 400);
+    }
+
+    if (!mcpRecord[0].url) {
+      return c.json({ message: "MCP URL is not configured" }, 400);
+    }
+
+    try {
+      const callbackUrl = buildOAuthCallbackUrl();
+      const provider = new DatabaseOAuthClientProvider(
+        mcpRecord[0],
+        callbackUrl,
+      );
+
+      const result = await mcpAuth(provider, {
+        serverUrl: mcpRecord[0].url,
+        fetchFn: oauthFetchFn,
+      });
+
+      if (result === "REDIRECT") {
+        const authUrl = provider.getPendingAuthUrl();
+        if (!authUrl) {
+          return c.json(
+            { message: "Failed to generate authorization URL" },
+            500,
+          );
+        }
+        return c.json({ authorizationUrl: authUrl.toString() });
+      }
+
+      // Already authorized
+      return c.json({ message: "Already authorized" });
+    } catch (error) {
+      logger.error({ error }, "OAuth authorize error");
+      const errorMessage =
+        error instanceof Error ? error.message : "OAuth authorization failed";
+      return c.json({ message: errorMessage }, 500);
+    }
+  },
+);
+
+/** Revoke OAuth tokens for an MCP */
+mcp.post(
+  "/:mcpId/oauth/revoke",
+  requireAuth,
+  requireOrgAccess(),
+  requireWorkspaceAccess,
+  async (c) => {
+    const mcpId = c.req.param("mcpId");
+    const workspaceId = c.req.param("workspaceId")!;
+
+    const record = await db
+      .update(mcpTable)
+      .set({
+        ...OAUTH_TOKEN_CLEAR_FIELDS,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(mcpTable.id, mcpId), eq(mcpTable.workspaceId, workspaceId)))
+      .returning();
+
+    if (record.length === 0) {
+      return c.json({ message: "MCP not found" }, 404);
+    }
+
+    return c.json({ success: true });
   },
 );
 

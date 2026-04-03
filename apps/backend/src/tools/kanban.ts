@@ -82,7 +82,9 @@ export function createKanbanTools(
     return result.length > 0;
   }
 
-  async function getBoardIdForCard(cardId: string): Promise<string | undefined> {
+  async function getBoardIdForCard(
+    cardId: string,
+  ): Promise<string | undefined> {
     const result = await db
       .select({ boardId: kanbanColumnTable.boardId })
       .from(kanbanCardTable)
@@ -325,12 +327,7 @@ export function createKanbanTools(
 
       const boardId = await getBoardIdForCard(id);
       const url = boardId
-        ? buildResourceUrl(
-            frontendUrl,
-            orgId,
-            workspaceId,
-            `boards/${boardId}`,
-          )
+        ? buildResourceUrl(frontendUrl, orgId, workspaceId, `boards/${boardId}`)
         : undefined;
 
       return { ...record[0], ...(url && { url }) };
@@ -420,12 +417,7 @@ export function createKanbanTools(
 
       const boardId = await getBoardIdForCard(cardId);
       const url = boardId
-        ? buildResourceUrl(
-            frontendUrl,
-            orgId,
-            workspaceId,
-            `boards/${boardId}`,
-          )
+        ? buildResourceUrl(frontendUrl, orgId, workspaceId, `boards/${boardId}`)
         : undefined;
 
       return { ...updated[0], ...(url && { url }) };

@@ -190,10 +190,32 @@ export const mcp = pgTable(
     url: t.text("url"),
     authType: t.text("auth_type").notNull(),
     bearerToken: t.text("bearer_token"),
+    oauthAccessToken: t.text("oauth_access_token"),
+    oauthRefreshToken: t.text("oauth_refresh_token"),
+    oauthTokenExpiresAt: t.timestamp("oauth_token_expires_at"),
+    oauthScope: t.text("oauth_scope"),
+    oauthClientId: t.text("oauth_client_id"),
+    oauthClientSecret: t.text("oauth_client_secret"),
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
     updatedAt: t.timestamp("updated_at").notNull().defaultNow(),
   }),
   (t) => [index("idx_mcp_workspace_id").on(t.workspaceId)],
+);
+
+export const mcpOauthState = pgTable(
+  "mcp_oauth_state",
+  (t) => ({
+    id: t.text("id").primaryKey(),
+    mcpId: t
+      .text("mcp_id")
+      .notNull()
+      .references(() => mcp.id, { onDelete: "cascade" }),
+    codeVerifier: t.text("code_verifier").notNull(),
+    redirectUri: t.text("redirect_uri").notNull(),
+    createdAt: t.timestamp("created_at").notNull().defaultNow(),
+    expiresAt: t.timestamp("expires_at").notNull(),
+  }),
+  (t) => [index("idx_mcp_oauth_state_mcp_id").on(t.mcpId)],
 );
 
 // Organization membership - links users to organizations with roles

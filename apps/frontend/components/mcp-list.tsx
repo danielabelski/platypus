@@ -33,7 +33,19 @@ const McpList = ({
     fetcher,
   );
 
-  if (isLoading || error) return null; // FIXME
+  if (isLoading) {
+    return null;
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <p className="text-destructive">
+          Failed to load MCP servers. {error.info?.message || error.message}
+        </p>
+      </div>
+    );
+  }
 
   const mcps: MCP[] = data?.results ?? [];
   if (!mcps.length) {

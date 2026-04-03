@@ -27,6 +27,7 @@ import {
 import type { Provider, Skill } from "@platypus/schemas";
 import type { Tool } from "ai";
 import { logger } from "../logger.ts";
+import { buildMcpTransportConfig } from "./mcp-oauth-provider.ts";
 
 // --- Types ---
 
@@ -227,7 +228,12 @@ export const loadTools = async (
       const toolSet = getToolSet(toolSetId);
       const resolvedTools =
         typeof toolSet.tools === "function"
-          ? toolSet.tools({ workspaceId, agentId: agent.id, orgId, frontendUrl })
+          ? toolSet.tools({
+              workspaceId,
+              agentId: agent.id,
+              orgId,
+              frontendUrl,
+            })
           : toolSet.tools;
       Object.assign(tools, resolvedTools);
     } catch (error) {
@@ -247,14 +253,7 @@ export const loadTools = async (
         const mcp = mcpRecord[0];
         if (mcp.url) {
           const mcpClient = await createMCPClient({
-            transport: {
-              type: "http",
-              url: mcp.url,
-              headers:
-                mcp.authType === "Bearer"
-                  ? { Authorization: `Bearer ${mcp.bearerToken}` }
-                  : undefined,
-            },
+            transport: buildMcpTransportConfig(mcp),
           });
           const mcpTools = await mcpClient.tools();
           Object.assign(tools, mcpTools);

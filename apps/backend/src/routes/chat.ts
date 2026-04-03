@@ -248,7 +248,9 @@ chat.post(
       context = await resolveChatContext(data, orgId, workspaceId);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to resolve chat context";
+        error instanceof Error
+          ? error.message
+          : "Failed to resolve chat context";
       return c.json({ message }, 400);
     }
     const {

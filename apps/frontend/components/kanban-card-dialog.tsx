@@ -33,12 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trash2 } from "lucide-react";
 import { cn, fetcher, joinUrl } from "@/lib/utils";
 import { useBackendUrl } from "@/app/client-context";
@@ -204,10 +199,7 @@ export function KanbanCardDialog({
           <DialogTitle>&nbsp;</DialogTitle>
         </DialogHeader>
         {isMobile ? (
-          <Tabs
-            defaultValue="details"
-            className="min-h-0 flex-1 flex flex-col"
-          >
+          <Tabs defaultValue="details" className="min-h-0 flex-1 flex flex-col">
             <TabsList className="shrink-0">
               <TabsTrigger value="details">Details</TabsTrigger>
               <TabsTrigger value="comments">Comments</TabsTrigger>

@@ -29,9 +29,24 @@ import { fetcher, parseValidationErrors, joinUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
-import { Trash2, Plug, Check, X } from "lucide-react";
+import {
+  Trash2,
+  Plug,
+  Check,
+  X,
+  ExternalLink,
+  ShieldCheck,
+  ShieldOff,
+} from "lucide-react";
+import {
+  OAUTH_MCP_SUCCESS_EVENT,
+  OAUTH_MCP_ERROR_EVENT,
+} from "@/lib/constants";
 
-type McpFormData = Omit<MCP, "id" | "createdAt" | "updatedAt" | "workspaceId">;
+type McpFormData = Omit<
+  MCP,
+  "id" | "createdAt" | "updatedAt" | "workspaceId" | "oauthAuthorized"
+>;
 
 const McpForm = ({
   classNames,
@@ -52,6 +67,8 @@ const McpForm = ({
     url: "",
     authType: "None",
     bearerToken: "",
+    oauthClientId: "",
+    oauthClientSecret: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -65,10 +82,16 @@ const McpForm = ({
     toolNames?: string[];
     error?: string;
   } | null>(null);
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   const router = useRouter();
 
-  const { data: mcp, isLoading } = useSWR<MCP>(
+  const {
+    data: mcp,
+    isLoading,
+    mutate: mutateMcp,
+  } = useSWR<MCP & { oauthAuthorized?: boolean }>(
     mcpId && user
       ? joinUrl(
           backendUrl,
@@ -85,6 +108,8 @@ const McpForm = ({
         url: mcp.url || "",
         authType: mcp.authType,
         bearerToken: mcp.bearerToken || "",
+        oauthClientId: mcp.oauthClientId || "",
+        oauthClientSecret: "",
       });
     }
   }, [mcp]);
@@ -138,47 +163,68 @@ const McpForm = ({
     setTestResult(null);
   };
 
+  /** Builds the save payload from current form state */
+  const buildPayload = () => {
+    const payload: Record<string, unknown> = {
+      workspaceId,
+      name: formData.name,
+      url: formData.url,
+      authType: formData.authType,
+      bearerToken:
+        formData.authType === "Bearer" ? formData.bearerToken : undefined,
+      oauthClientId:
+        formData.authType === "OAuth" ? formData.oauthClientId : undefined,
+      oauthClientSecret:
+        formData.authType === "OAuth" && formData.oauthClientSecret
+          ? formData.oauthClientSecret
+          : undefined,
+    };
+    return payload;
+  };
+
+  /**
+   * Saves the MCP (create or update). Returns the saved record's ID on
+   * success, or null on failure.
+   */
+  const saveMcp = async (existingId?: string): Promise<string | null> => {
+    setValidationErrors({});
+    const payload = buildPayload();
+
+    const url = existingId
+      ? joinUrl(
+          backendUrl,
+          `/organizations/${orgId}/workspaces/${workspaceId}/mcps/${existingId}`,
+        )
+      : joinUrl(
+          backendUrl,
+          `/organizations/${orgId}/workspaces/${workspaceId}/mcps`,
+        );
+
+    const method = existingId ? "PUT" : "POST";
+
+    const response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
+
+    if (response.ok) {
+      const record = await response.json();
+      return record.id;
+    }
+
+    const errorData = await response.json();
+    setValidationErrors(parseValidationErrors(errorData));
+    return null;
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    setValidationErrors({});
     try {
-      const payload: Omit<MCP, "id" | "createdAt" | "updatedAt"> = {
-        workspaceId,
-        name: formData.name,
-        url: formData.url,
-        authType: formData.authType,
-        bearerToken:
-          formData.authType === "Bearer" ? formData.bearerToken : undefined,
-      };
-
-      const url = mcpId
-        ? joinUrl(
-            backendUrl,
-            `/organizations/${orgId}/workspaces/${workspaceId}/mcps/${mcpId}`,
-          )
-        : joinUrl(
-            backendUrl,
-            `/organizations/${orgId}/workspaces/${workspaceId}/mcps`,
-          );
-
-      const method = mcpId ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
-
-      if (response.ok) {
+      const savedId = await saveMcp(mcpId);
+      if (savedId) {
         router.push(`/${orgId}/workspace/${workspaceId}/settings/mcp`);
-      } else {
-        // Parse standardschema.dev validation errors
-        const errorData = await response.json();
-        setValidationErrors(parseValidationErrors(errorData));
-        console.error("Failed to save MCP");
       }
     } catch (error) {
       console.error("Error saving MCP:", error);
@@ -225,12 +271,17 @@ const McpForm = ({
     setTestResult(null);
 
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         url: formData.url,
         authType: formData.authType,
         bearerToken:
           formData.authType === "Bearer" ? formData.bearerToken : undefined,
       };
+
+      // For OAuth, include mcpId so the backend can use stored tokens
+      if (formData.authType === "OAuth" && mcpId) {
+        payload.mcpId = mcpId;
+      }
 
       const response = await fetch(
         joinUrl(
@@ -270,9 +321,131 @@ const McpForm = ({
     }
   };
 
+  // Listen for OAuth completion messages from the popup window
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === OAUTH_MCP_SUCCESS_EVENT) {
+        mutateMcp();
+        toast.success("OAuth authorization completed");
+        setIsAuthorizing(false);
+      } else if (event.data?.type === OAUTH_MCP_ERROR_EVENT) {
+        toast.error(event.data.message || "OAuth authorization failed");
+        setIsAuthorizing(false);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [mutateMcp]);
+
+  const handleOAuthAuthorize = async () => {
+    setIsAuthorizing(true);
+
+    try {
+      // If the MCP hasn't been saved yet, save it first
+      let resolvedMcpId = mcpId;
+      if (!resolvedMcpId) {
+        resolvedMcpId = (await saveMcp()) ?? undefined;
+        if (!resolvedMcpId) {
+          // Validation errors were set by saveMcp
+          setIsAuthorizing(false);
+          return;
+        }
+      } else {
+        // Save any pending changes (e.g. newly entered client credentials)
+        const savedId = await saveMcp(resolvedMcpId);
+        if (!savedId) {
+          setIsAuthorizing(false);
+          return;
+        }
+      }
+
+      const response = await fetch(
+        joinUrl(
+          backendUrl,
+          `/organizations/${orgId}/workspaces/${workspaceId}/mcps/${resolvedMcpId}/oauth/authorize`,
+        ),
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.authorizationUrl) {
+        // Open OAuth in a popup so the main page is never navigated away.
+        // This avoids bfcache issues where the browser restores stale auth
+        // state when the user clicks the Back button.
+        const width = 600;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        const popup = window.open(
+          data.authorizationUrl,
+          "mcp-oauth",
+          `width=${width},height=${height},left=${left},top=${top},popup=yes`,
+        );
+
+        // If the popup was blocked, fall back to same-window redirect
+        if (!popup) {
+          window.location.replace(data.authorizationUrl);
+        }
+      } else {
+        toast.error(data.message || "Failed to start OAuth authorization");
+
+        // If we just created the MCP, redirect to the edit page so
+        // subsequent actions (e.g. re-authorize) use the correct mcpId
+        if (!mcpId && resolvedMcpId) {
+          router.replace(
+            `/${orgId}/workspace/${workspaceId}/settings/mcp/${resolvedMcpId}`,
+          );
+        }
+        setIsAuthorizing(false);
+      }
+    } catch (error) {
+      console.error("OAuth authorize error:", error);
+      toast.error("Failed to start OAuth authorization");
+      setIsAuthorizing(false);
+    }
+  };
+
+  const handleOAuthRevoke = async () => {
+    if (!mcpId) return;
+    setIsRevoking(true);
+
+    try {
+      const response = await fetch(
+        joinUrl(
+          backendUrl,
+          `/organizations/${orgId}/workspaces/${workspaceId}/mcps/${mcpId}/oauth/revoke`,
+        ),
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+
+      if (response.ok) {
+        toast.success("OAuth authorization revoked");
+        mutateMcp();
+        setTestResult(null);
+      } else {
+        toast.error("Failed to revoke OAuth authorization");
+      }
+    } catch (error) {
+      console.error("OAuth revoke error:", error);
+      toast.error("Failed to revoke OAuth authorization");
+    } finally {
+      setIsRevoking(false);
+    }
+  };
+
   if (isLoading) {
     return <div className={classNames}>Loading...</div>;
   }
+
+  const oauthAuthorized = mcp?.oauthAuthorized === true;
 
   return (
     <div className={classNames}>
@@ -329,6 +502,7 @@ const McpForm = ({
                     <SelectLabel>Authentication</SelectLabel>
                     <SelectItem value="None">None</SelectItem>
                     <SelectItem value="Bearer">Bearer</SelectItem>
+                    <SelectItem value="OAuth">OAuth</SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
@@ -355,6 +529,105 @@ const McpForm = ({
               </Field>
             )}
           </FieldGroup>
+
+          {/* OAuth Client Credentials */}
+          {formData.authType === "OAuth" && (
+            <FieldGroup className="grid grid-cols-2 gap-4">
+              <Field data-invalid={!!validationErrors.oauthClientId}>
+                <FieldLabel htmlFor="oauthClientId">Client ID</FieldLabel>
+                <Input
+                  id="oauthClientId"
+                  placeholder="OAuth Client ID"
+                  value={formData.oauthClientId}
+                  onChange={handleChange}
+                  disabled={isSubmitting}
+                  aria-invalid={!!validationErrors.oauthClientId}
+                />
+                {validationErrors.oauthClientId && (
+                  <FieldError>{validationErrors.oauthClientId}</FieldError>
+                )}
+              </Field>
+
+              <Field data-invalid={!!validationErrors.oauthClientSecret}>
+                <FieldLabel htmlFor="oauthClientSecret">
+                  Client Secret
+                </FieldLabel>
+                <Input
+                  id="oauthClientSecret"
+                  type="password"
+                  placeholder={
+                    mcpId && mcp?.oauthClientId
+                      ? "Leave blank to keep current"
+                      : "OAuth Client Secret"
+                  }
+                  value={formData.oauthClientSecret}
+                  onChange={handleChange}
+                  disabled={isSubmitting}
+                  aria-invalid={!!validationErrors.oauthClientSecret}
+                />
+                {validationErrors.oauthClientSecret && (
+                  <FieldError>{validationErrors.oauthClientSecret}</FieldError>
+                )}
+              </Field>
+              <FieldDescription className="col-span-2">
+                Leave blank if the server supports dynamic client registration.
+              </FieldDescription>
+            </FieldGroup>
+          )}
+
+          {/* OAuth Authorization Section */}
+          {formData.authType === "OAuth" && (
+            <div className="space-y-3">
+              {oauthAuthorized ? (
+                <Alert className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/20 dark:text-green-300 [&>svg]:text-green-600 dark:[&>svg]:text-green-400">
+                  <ShieldCheck />
+                  <AlertTitle>Authorized</AlertTitle>
+                  <AlertDescription>
+                    This MCP server is authorized via OAuth.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Alert>
+                  <ShieldOff />
+                  <AlertTitle>Not Authorized</AlertTitle>
+                  <AlertDescription>
+                    This MCP server requires OAuth authorization before it can
+                    be used.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={oauthAuthorized ? "outline" : "default"}
+                  className="cursor-pointer"
+                  onClick={handleOAuthAuthorize}
+                  disabled={isAuthorizing || isSubmitting}
+                >
+                  <ExternalLink />
+                  {isAuthorizing
+                    ? "Redirecting..."
+                    : oauthAuthorized
+                      ? "Re-authorize"
+                      : "Authorize"}
+                </Button>
+
+                {oauthAuthorized && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={handleOAuthRevoke}
+                    disabled={isRevoking || isSubmitting}
+                  >
+                    <ShieldOff />
+                    {isRevoking ? "Revoking..." : "Revoke"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </FieldGroup>
 
         {/* Test Connection Section */}
@@ -364,7 +637,12 @@ const McpForm = ({
             variant="outline"
             className="cursor-pointer"
             onClick={handleTestConnection}
-            disabled={isTesting || isSubmitting || !formData.url}
+            disabled={
+              isTesting ||
+              isSubmitting ||
+              !formData.url ||
+              (formData.authType === "OAuth" && (!mcpId || !oauthAuthorized))
+            }
           >
             <Plug />
             {isTesting ? "Testing..." : "Test Connection"}

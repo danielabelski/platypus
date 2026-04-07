@@ -241,6 +241,84 @@ export function extractStorageKeys(messages: PlatypusUIMessage[]): string[] {
 }
 
 /**
+ * Replace HTTP file URLs and storage:// URLs with inline data: URLs
+ * so that `convertToModelMessages()` can access file content without
+ * making HTTP requests (which would fail without session cookies).
+ *
+ * This is an ephemeral transformation — only used in-memory for the
+ * `streamText()` call. The DB continues to store storage:// URLs.
+ *
+ * @param messages - Array of chat messages with parts
+ * @param backendOrigin - The origin of the backend server (e.g. http://localhost:4000)
+ * @returns Modified messages with file URLs replaced by data: URLs
+ */
+export async function inlineFileUrls(
+  messages: PlatypusUIMessage[],
+  backendOrigin: string,
+): Promise<PlatypusUIMessage[]> {
+  const storage = getStorage();
+  const filesPrefix = `${backendOrigin}/files/`;
+
+  return Promise.all(
+    messages.map(async (message) => {
+      if (!message.parts || !Array.isArray(message.parts)) {
+        return message;
+      }
+
+      const processedParts = await Promise.all(
+        message.parts.map(async (part) => {
+          if (
+            part.type !== "file" ||
+            !("url" in part) ||
+            typeof part.url !== "string"
+          ) {
+            return part;
+          }
+
+          const url = part.url;
+
+          // Already a data URL — nothing to do
+          if (url.startsWith("data:")) {
+            return part;
+          }
+
+          // Extract the storage key from the URL
+          let key: string | undefined;
+          if (url.startsWith(filesPrefix)) {
+            key = url.slice(filesPrefix.length);
+          } else if (url.startsWith(STORAGE_URL_PREFIX)) {
+            key = url.slice(STORAGE_URL_PREFIX.length);
+          }
+
+          if (!key) {
+            return part;
+          }
+
+          try {
+            const result = await storage.get(key);
+            if (!result) {
+              logger.warn({ key }, "File not found in storage during inlining");
+              return part;
+            }
+
+            const dataUrl = `data:${result.contentType};base64,${result.data.toString("base64")}`;
+            return { ...part, url: dataUrl };
+          } catch (error) {
+            logger.error(
+              { error, key },
+              "Failed to inline file URL, leaving as-is",
+            );
+            return part;
+          }
+        }),
+      );
+
+      return { ...message, parts: processedParts };
+    }),
+  );
+}
+
+/**
  * Delete all files associated with a chat's messages.
  * Best-effort operation - errors are logged but don't fail the operation.
  *

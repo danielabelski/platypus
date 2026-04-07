@@ -51,6 +51,7 @@ import { logger } from "../logger.ts";
 import { type PlatypusUIMessage } from "../types.ts";
 import {
   extractFiles,
+  inlineFileUrls,
   rewriteStorageUrls,
   deleteFiles,
 } from "../storage/utils.ts";
@@ -345,9 +346,14 @@ chat.post(
 
     logger.debug({ systemPrompt }, "System prompt for chat");
 
+    const inlinedMessages = await inlineFileUrls(
+      messages,
+      new URL(c.req.url).origin,
+    );
+
     const result = streamText({
       model: model as any,
-      messages: await convertToModelMessages(messages),
+      messages: await convertToModelMessages(inlinedMessages),
       stopWhen: [stepCountIs(resolvedMaxSteps)],
       tools,
       system: systemPrompt,

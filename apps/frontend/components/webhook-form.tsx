@@ -18,15 +18,7 @@ import { fetcher, parseValidationErrors, joinUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
-import {
-  Trash2,
-  Eye,
-  EyeOff,
-  Copy,
-  RefreshCw,
-  Plus,
-  X,
-} from "lucide-react";
+import { Trash2, Eye, EyeOff, Copy, RefreshCw, Plus, X } from "lucide-react";
 
 interface Webhook {
   id: string;
@@ -47,7 +39,12 @@ interface WebhookFormProps {
   onMutate: () => void;
 }
 
-const WebhookForm = ({ orgId, workspaceId, webhook, onMutate }: WebhookFormProps) => {
+const WebhookForm = ({
+  orgId,
+  workspaceId,
+  webhook,
+  onMutate,
+}: WebhookFormProps) => {
   const backendUrl = useBackendUrl();
   const router = useRouter();
 
@@ -70,15 +67,17 @@ const WebhookForm = ({ orgId, workspaceId, webhook, onMutate }: WebhookFormProps
   const [events, setEvents] = useState<string[]>(
     webhook?.events ?? [...ALL_EVENTS],
   );
-  const [headers, setHeaders] = useState<{ key: string; value: string }[]>(() => {
-    if (webhook?.headers) {
-      return Object.entries(webhook.headers).map(([key, value]) => ({
-        key,
-        value,
-      }));
-    }
-    return [];
-  });
+  const [headers, setHeaders] = useState<{ key: string; value: string }[]>(
+    () => {
+      if (webhook?.headers) {
+        return Object.entries(webhook.headers).map(([key, value]) => ({
+          key,
+          value,
+        }));
+      }
+      return [];
+    },
+  );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -162,9 +161,7 @@ const WebhookForm = ({ orgId, workspaceId, webhook, onMutate }: WebhookFormProps
         } else {
           toast.success("Webhook created");
           onMutate();
-          router.push(
-            `/${orgId}/workspace/${workspaceId}/settings/webhook`,
-          );
+          router.push(`/${orgId}/workspace/${workspaceId}/settings/webhook`);
         }
       } else {
         const errorData = await response.json();
@@ -191,9 +188,7 @@ const WebhookForm = ({ orgId, workspaceId, webhook, onMutate }: WebhookFormProps
         setIsDeleting(false);
         setIsDeleteDialogOpen(false);
         onMutate();
-        router.push(
-          `/${orgId}/workspace/${workspaceId}/settings/webhook`,
-        );
+        router.push(`/${orgId}/workspace/${workspaceId}/settings/webhook`);
       } else {
         console.error("Failed to delete webhook");
         toast.error("Failed to delete webhook");
@@ -350,7 +345,11 @@ const WebhookForm = ({ orgId, workspaceId, webhook, onMutate }: WebhookFormProps
                   className="shrink-0 cursor-pointer"
                   onClick={() => setShowSecret(!showSecret)}
                 >
-                  {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showSecret ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
                 <Button
                   type="button"
@@ -431,9 +430,7 @@ const WebhookForm = ({ orgId, workspaceId, webhook, onMutate }: WebhookFormProps
         <Button
           className="cursor-pointer"
           onClick={handleSubmit}
-          disabled={
-            isSubmitting || Object.keys(validationErrors).length > 0
-          }
+          disabled={isSubmitting || Object.keys(validationErrors).length > 0}
         >
           {isEditMode ? "Update" : "Save"}
         </Button>

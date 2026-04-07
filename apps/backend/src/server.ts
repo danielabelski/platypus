@@ -127,10 +127,7 @@ app.route(
   "/organizations/:orgId/workspaces/:workspaceId/notifications",
   notification,
 );
-app.route(
-  "/organizations/:orgId/workspaces/:workspaceId/webhook",
-  webhook,
-);
+app.route("/organizations/:orgId/workspaces/:workspaceId/webhook", webhook);
 app.route("/organizations/:orgId/invitations", invitation);
 app.route("/organizations/:orgId/members", member);
 app.route("/users/me/invitations", userInvitation);

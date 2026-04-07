@@ -9,11 +9,7 @@ vi.mock("node:crypto", async () => {
     ...actual,
     default: {
       ...(actual as any).default,
-      randomBytes: vi
-        .fn()
-        .mockReturnValue(
-          Buffer.from("a".repeat(32)),
-        ),
+      randomBytes: vi.fn().mockReturnValue(Buffer.from("a".repeat(32))),
     },
   };
 });

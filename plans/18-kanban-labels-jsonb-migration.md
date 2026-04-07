@@ -47,7 +47,9 @@ Add an inline label schema:
 export const kanbanLabelSchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(50),
-  color: z.enum(KANBAN_LABEL_COLORS.map(c => c.value) as [string, ...string[]]),
+  color: z.enum(
+    KANBAN_LABEL_COLORS.map((c) => c.value) as [string, ...string[]],
+  ),
 });
 
 export type KanbanLabel = z.infer<typeof kanbanLabelSchema>;
@@ -177,6 +179,7 @@ Rewrite this component to include label management inline:
 - **Single submit button** at the bottom that POSTs/PUTs `{ name, description, labels }` to the backend
 
 Form layout (top to bottom):
+
 1. Name field
 2. Description field
 3. Labels section header
@@ -185,6 +188,7 @@ Form layout (top to bottom):
 6. Submit button ("Create Board" or "Save Changes")
 
 Install `nanoid` in the frontend for generating label IDs client-side:
+
 ```
 pnpm --filter frontend add nanoid
 ```
@@ -234,10 +238,12 @@ The `KanbanLabel` type is changing (no longer has `boardId`, `createdAt`, `updat
 ## 12. Update Tests
 
 ### Schema tests (`packages/schemas/kanban.test.ts` — if exists)
+
 - Update label schema tests to validate the new inline structure
 - Add tests for color enum validation (only palette colors accepted)
 
 ### Backend route tests (`apps/backend/src/routes/kanban.test.ts`)
+
 - **Remove** all label CRUD test blocks (`POST /:boardId/labels`, `PUT /:boardId/labels/:labelId`, `DELETE /:boardId/labels/:labelId`)
 - **Update** board state test to not expect a separate `labels` array in response
 - **Update** board create/update tests to include `labels` in the request body
@@ -246,18 +252,18 @@ The `KanbanLabel` type is changing (no longer has `boardId`, `createdAt`, `updat
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `packages/schemas/index.ts` | Add color palette, refactor label schema to inline, update board schemas, update board state schema |
-| `apps/backend/src/db/schema.ts` | Delete `kanbanLabel` table, add `labels` JSONB to `kanbanBoard` |
-| `apps/backend/src/routes/kanban.ts` | Delete label CRUD routes, update board state endpoint |
-| `apps/backend/src/tools/kanban.ts` | Remove label table query, read labels from board record |
-| `apps/backend/src/routes/kanban.test.ts` | Remove label CRUD tests, update board state tests |
-| `apps/frontend/components/kanban-board-form.tsx` | Rewrite to include inline label management with color palette |
-| `apps/frontend/components/kanban-board.tsx` | Update label source from `data.labels` to `data.board.labels` |
-| `apps/frontend/app/[orgId]/workspace/[workspaceId]/boards/[boardId]/settings/page.tsx` | Remove `KanbanLabelManager`, pass labels via board prop |
-| `apps/frontend/components/kanban-label-manager.tsx` | **Delete** |
-| `apps/frontend/package.json` | Add `nanoid` dependency |
+| File                                                                                   | Change                                                                                              |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `packages/schemas/index.ts`                                                            | Add color palette, refactor label schema to inline, update board schemas, update board state schema |
+| `apps/backend/src/db/schema.ts`                                                        | Delete `kanbanLabel` table, add `labels` JSONB to `kanbanBoard`                                     |
+| `apps/backend/src/routes/kanban.ts`                                                    | Delete label CRUD routes, update board state endpoint                                               |
+| `apps/backend/src/tools/kanban.ts`                                                     | Remove label table query, read labels from board record                                             |
+| `apps/backend/src/routes/kanban.test.ts`                                               | Remove label CRUD tests, update board state tests                                                   |
+| `apps/frontend/components/kanban-board-form.tsx`                                       | Rewrite to include inline label management with color palette                                       |
+| `apps/frontend/components/kanban-board.tsx`                                            | Update label source from `data.labels` to `data.board.labels`                                       |
+| `apps/frontend/app/[orgId]/workspace/[workspaceId]/boards/[boardId]/settings/page.tsx` | Remove `KanbanLabelManager`, pass labels via board prop                                             |
+| `apps/frontend/components/kanban-label-manager.tsx`                                    | **Delete**                                                                                          |
+| `apps/frontend/package.json`                                                           | Add `nanoid` dependency                                                                             |
 
 ---
 

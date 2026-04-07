@@ -79,10 +79,7 @@ webhook.post(
     };
 
     try {
-      const result = await db
-        .insert(webhookTable)
-        .values(record)
-        .returning();
+      const result = await db.insert(webhookTable).values(record).returning();
       return c.json(result[0], 201);
     } catch (error: any) {
       if (error?.cause?.code === "23505") {

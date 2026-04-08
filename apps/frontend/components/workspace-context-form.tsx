@@ -220,14 +220,14 @@ export const WorkspaceContextForm = ({ contextId }: { contextId?: string }) => {
             <>
               <Field>
                 <FieldLabel>Organization</FieldLabel>
-                <div className="text-sm font-medium">
+                <div className="text-sm text-muted-foreground">
                   {selectedWorkspace?.organizationName ||
                     "Unknown Organization"}
                 </div>
               </Field>
               <Field>
                 <FieldLabel>Workspace</FieldLabel>
-                <div className="text-sm font-medium">
+                <div className="text-sm text-muted-foreground">
                   {selectedWorkspace?.name || "Unknown Workspace"}
                 </div>
               </Field>

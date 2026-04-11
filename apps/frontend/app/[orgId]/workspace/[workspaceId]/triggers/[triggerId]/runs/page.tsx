@@ -74,7 +74,7 @@ const TriggerRunsPage = ({
 
   return (
     <div className="flex justify-center pb-8">
-      <div className="w-full xl:w-4/5 max-w-4xl">
+      <div className="w-full px-4 md:px-0 xl:w-4/5 max-w-4xl">
         <BackButton
           fallbackHref={`/${orgId}/workspace/${workspaceId}/triggers/${triggerId}`}
         />

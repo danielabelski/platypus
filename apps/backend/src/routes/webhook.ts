@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Hono } from "hono";
 import { sValidator } from "@hono/standard-validator";
 import { nanoid } from "nanoid";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../index.ts";
 import { webhook as webhookTable } from "../db/schema.ts";
 import { webhookCreateSchema, webhookUpdateSchema } from "@platypus/schemas";
@@ -19,7 +19,7 @@ function generateSigningSecret(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
-/** GET / — Get webhook config */
+/** GET / — List all webhooks for workspace */
 webhook.get(
   "/",
   requireAuth,
@@ -31,18 +31,13 @@ webhook.get(
     const results = await db
       .select()
       .from(webhookTable)
-      .where(eq(webhookTable.workspaceId, workspaceId))
-      .limit(1);
+      .where(eq(webhookTable.workspaceId, workspaceId));
 
-    if (results.length === 0) {
-      return c.json({ message: "No webhook configured" }, 404);
-    }
-
-    return c.json(results[0]);
+    return c.json({ results });
   },
 );
 
-/** POST / — Create webhook */
+/** POST / — Create a new webhook */
 webhook.post(
   "/",
   requireAuth,
@@ -52,6 +47,7 @@ webhook.post(
   async (c) => {
     const workspaceId = c.req.param("workspaceId")!;
     const body = c.req.valid("json" as never) as {
+      name: string;
       url: string;
       headers?: Record<string, string> | null;
       enabled?: boolean;
@@ -69,6 +65,7 @@ webhook.post(
     const record = {
       id: nanoid(),
       workspaceId,
+      name: body.name,
       url: body.url,
       signingSecret: generateSigningSecret(),
       headers: body.headers ?? null,
@@ -78,31 +75,52 @@ webhook.post(
       updatedAt: now,
     };
 
-    try {
-      const result = await db.insert(webhookTable).values(record).returning();
-      return c.json(result[0], 201);
-    } catch (error: any) {
-      if (error?.cause?.code === "23505") {
-        return c.json(
-          { message: "A webhook already exists for this workspace" },
-          409,
-        );
-      }
-      throw error;
-    }
+    const result = await db.insert(webhookTable).values(record).returning();
+    return c.json(result[0], 201);
   },
 );
 
-/** PUT / — Update webhook */
+/** GET /:webhookId — Get single webhook */
+webhook.get(
+  "/:webhookId",
+  requireAuth,
+  requireOrgAccess(),
+  requireWorkspaceAccess,
+  async (c) => {
+    const workspaceId = c.req.param("workspaceId")!;
+    const webhookId = c.req.param("webhookId")!;
+
+    const results = await db
+      .select()
+      .from(webhookTable)
+      .where(
+        and(
+          eq(webhookTable.id, webhookId),
+          eq(webhookTable.workspaceId, workspaceId),
+        ),
+      )
+      .limit(1);
+
+    if (results.length === 0) {
+      return c.json({ message: "Webhook not found" }, 404);
+    }
+
+    return c.json(results[0]);
+  },
+);
+
+/** PUT /:webhookId — Update webhook */
 webhook.put(
-  "/",
+  "/:webhookId",
   requireAuth,
   requireOrgAccess(),
   requireWorkspaceAccess,
   sValidator("json", webhookUpdateSchema),
   async (c) => {
     const workspaceId = c.req.param("workspaceId")!;
+    const webhookId = c.req.param("webhookId")!;
     const body = c.req.valid("json" as never) as {
+      name?: string;
       url?: string;
       headers?: Record<string, string> | null;
       enabled?: boolean;
@@ -112,6 +130,7 @@ webhook.put(
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
+    if (body.name !== undefined) updateData.name = body.name;
     if (body.url !== undefined) updateData.url = body.url;
     if (body.headers !== undefined) updateData.headers = body.headers;
     if (body.enabled !== undefined) updateData.enabled = body.enabled;
@@ -120,47 +139,59 @@ webhook.put(
     const result = await db
       .update(webhookTable)
       .set(updateData)
-      .where(eq(webhookTable.workspaceId, workspaceId))
+      .where(
+        and(
+          eq(webhookTable.id, webhookId),
+          eq(webhookTable.workspaceId, workspaceId),
+        ),
+      )
       .returning();
 
     if (result.length === 0) {
-      return c.json({ message: "No webhook configured" }, 404);
+      return c.json({ message: "Webhook not found" }, 404);
     }
 
     return c.json(result[0]);
   },
 );
 
-/** DELETE / — Delete webhook */
+/** DELETE /:webhookId — Delete webhook */
 webhook.delete(
-  "/",
+  "/:webhookId",
   requireAuth,
   requireOrgAccess(),
   requireWorkspaceAccess,
   async (c) => {
     const workspaceId = c.req.param("workspaceId")!;
+    const webhookId = c.req.param("webhookId")!;
 
     const result = await db
       .delete(webhookTable)
-      .where(eq(webhookTable.workspaceId, workspaceId))
+      .where(
+        and(
+          eq(webhookTable.id, webhookId),
+          eq(webhookTable.workspaceId, workspaceId),
+        ),
+      )
       .returning();
 
     if (result.length === 0) {
-      return c.json({ message: "No webhook configured" }, 404);
+      return c.json({ message: "Webhook not found" }, 404);
     }
 
     return c.json({ message: "Webhook deleted" });
   },
 );
 
-/** POST /regenerate-secret — Regenerate signing secret */
+/** POST /:webhookId/regenerate-secret — Regenerate signing secret */
 webhook.post(
-  "/regenerate-secret",
+  "/:webhookId/regenerate-secret",
   requireAuth,
   requireOrgAccess(),
   requireWorkspaceAccess,
   async (c) => {
     const workspaceId = c.req.param("workspaceId")!;
+    const webhookId = c.req.param("webhookId")!;
 
     const result = await db
       .update(webhookTable)
@@ -168,11 +199,16 @@ webhook.post(
         signingSecret: generateSigningSecret(),
         updatedAt: new Date(),
       })
-      .where(eq(webhookTable.workspaceId, workspaceId))
+      .where(
+        and(
+          eq(webhookTable.id, webhookId),
+          eq(webhookTable.workspaceId, workspaceId),
+        ),
+      )
       .returning();
 
     if (result.length === 0) {
-      return c.json({ message: "No webhook configured" }, 404);
+      return c.json({ message: "Webhook not found" }, 404);
     }
 
     return c.json(result[0]);

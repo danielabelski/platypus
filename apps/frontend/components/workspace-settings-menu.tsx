@@ -25,7 +25,7 @@ export function WorkspaceSettingsMenu({
   const workspaceHref = `/${orgId}/workspace/${workspaceId}/settings`;
   const providersHref = `/${orgId}/workspace/${workspaceId}/settings/providers`;
   const mcpHref = `/${orgId}/workspace/${workspaceId}/settings/mcp`;
-  const webhookHref = `/${orgId}/workspace/${workspaceId}/settings/webhook`;
+  const webhookHref = `/${orgId}/workspace/${workspaceId}/settings/webhooks`;
   const aboutHref = `/${orgId}/workspace/${workspaceId}/settings/about`;
 
   return (
@@ -66,7 +66,7 @@ export function WorkspaceSettingsMenu({
                 isActive={pathname.startsWith(webhookHref)}
               >
                 <Link href={webhookHref}>
-                  <Radio /> Webhook
+                  <Radio /> Webhooks
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

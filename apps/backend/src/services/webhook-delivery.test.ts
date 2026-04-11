@@ -8,9 +8,7 @@ vi.mock("../index.ts", () => ({
   db: {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: mockWebhookSelect,
-        })),
+        where: mockWebhookSelect,
       })),
     })),
   },
@@ -50,6 +48,7 @@ describe("Webhook Delivery Service", () => {
   const sampleWebhook = {
     id: "wh-1",
     workspaceId: "ws-1",
+    name: "Test Webhook",
     url: "https://example.com/webhook",
     signingSecret: "test-secret-key",
     headers: null,
@@ -188,5 +187,78 @@ describe("Webhook Delivery Service", () => {
     await vi.advanceTimersByTimeAsync(100);
 
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("should deliver to multiple webhooks", async () => {
+    const webhook2 = {
+      ...sampleWebhook,
+      id: "wh-2",
+      name: "Second Webhook",
+      url: "https://other.com/webhook",
+      signingSecret: "other-secret",
+    };
+    mockWebhookSelect.mockResolvedValueOnce([sampleWebhook, webhook2]);
+    mockFetch.mockResolvedValue({ ok: true });
+
+    dispatchWebhook("ws-1", "notification.created", { id: "n-1" });
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    const [url1, opts1] = mockFetch.mock.calls[0];
+    const [url2, opts2] = mockFetch.mock.calls[1];
+    expect(url1).toBe("https://example.com/webhook");
+    expect(url2).toBe("https://other.com/webhook");
+
+    // Each webhook should have a different signature (different signing secrets)
+    expect(opts1.headers["X-Webhook-Signature"]).not.toBe(
+      opts2.headers["X-Webhook-Signature"],
+    );
+  });
+
+  it("should skip webhooks not subscribed to the event", async () => {
+    const webhook2 = {
+      ...sampleWebhook,
+      id: "wh-2",
+      name: "Limited Webhook",
+      url: "https://other.com/webhook",
+      events: ["notification.created"],
+    };
+    mockWebhookSelect.mockResolvedValueOnce([sampleWebhook, webhook2]);
+    mockFetch.mockResolvedValue({ ok: true });
+
+    dispatchWebhook("ws-1", "notification.dismissed", { id: "n-1" });
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    // Only the first webhook subscribes to notification.dismissed
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe("https://example.com/webhook");
+  });
+
+  it("should continue delivery when one webhook fails", async () => {
+    const webhook2 = {
+      ...sampleWebhook,
+      id: "wh-2",
+      name: "Second Webhook",
+      url: "https://other.com/webhook",
+      signingSecret: "other-secret",
+    };
+    mockWebhookSelect.mockResolvedValueOnce([sampleWebhook, webhook2]);
+    // First webhook fails, second succeeds
+    mockFetch
+      .mockRejectedValueOnce(new Error("Network error"))
+      .mockResolvedValueOnce({ ok: true });
+
+    dispatchWebhook("ws-1", "notification.created", { id: "n-1" });
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    // Both webhooks should have been attempted
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [url2] = mockFetch.mock.calls[1];
+    expect(url2).toBe("https://other.com/webhook");
   });
 });

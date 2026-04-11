@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import { fetcher, parseValidationErrors, joinUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { useBackendUrl } from "@/app/client-context";
@@ -23,6 +24,7 @@ import { Trash2, Eye, EyeOff, Copy, RefreshCw, Plus, X } from "lucide-react";
 interface Webhook {
   id: string;
   workspaceId: string;
+  name: string;
   url: string;
   signingSecret: string;
   headers: Record<string, string> | null;
@@ -35,18 +37,14 @@ interface Webhook {
 interface WebhookFormProps {
   orgId: string;
   workspaceId: string;
-  webhook?: Webhook;
-  onMutate: () => void;
+  webhookId?: string;
 }
 
-const WebhookForm = ({
-  orgId,
-  workspaceId,
-  webhook,
-  onMutate,
-}: WebhookFormProps) => {
+const WebhookForm = ({ orgId, workspaceId, webhookId }: WebhookFormProps) => {
+  const { user } = useAuth();
   const backendUrl = useBackendUrl();
   const router = useRouter();
+  const hasInitialized = useRef(false);
 
   const ALL_EVENTS = [
     "notification.created",
@@ -62,22 +60,11 @@ const WebhookForm = ({
     "notification.dismissed": "Notification dismissed",
   };
 
-  const [url, setUrl] = useState(webhook?.url ?? "");
-  const [enabled, setEnabled] = useState(webhook?.enabled ?? true);
-  const [events, setEvents] = useState<string[]>(
-    webhook?.events ?? [...ALL_EVENTS],
-  );
-  const [headers, setHeaders] = useState<{ key: string; value: string }[]>(
-    () => {
-      if (webhook?.headers) {
-        return Object.entries(webhook.headers).map(([key, value]) => ({
-          key,
-          value,
-        }));
-      }
-      return [];
-    },
-  );
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [enabled, setEnabled] = useState(true);
+  const [events, setEvents] = useState<string[]>([...ALL_EVENTS]);
+  const [headers, setHeaders] = useState<{ key: string; value: string }[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -89,20 +76,30 @@ const WebhookForm = ({
     Record<string, string>
   >({});
 
-  const isEditMode = !!webhook;
+  const isEditMode = !!webhookId;
 
-  const toggleEvent = (event: string) => {
-    setEvents((prev) => {
-      if (prev.includes(event)) {
-        if (prev.length === 1) return prev;
-        return prev.filter((e) => e !== event);
-      }
-      return [...prev, event];
-    });
-  };
+  // Reset initialization when webhookId changes
+  useEffect(() => {
+    hasInitialized.current = false;
+  }, [webhookId]);
+
+  const fetchUrl =
+    webhookId && user
+      ? joinUrl(
+          backendUrl,
+          `/organizations/${orgId}/workspaces/${workspaceId}/webhooks/${webhookId}`,
+        )
+      : null;
+
+  const {
+    data: webhook,
+    isLoading,
+    mutate,
+  } = useSWR<Webhook>(fetchUrl, fetcher);
 
   useEffect(() => {
-    if (webhook) {
+    if (webhook && !hasInitialized.current) {
+      setName(webhook.name);
       setUrl(webhook.url);
       setEnabled(webhook.enabled);
       setEvents(webhook.events ?? [...ALL_EVENTS]);
@@ -116,12 +113,23 @@ const WebhookForm = ({
       } else {
         setHeaders([]);
       }
+      hasInitialized.current = true;
     }
   }, [webhook]);
 
-  const webhookBaseUrl = joinUrl(
+  const toggleEvent = (event: string) => {
+    setEvents((prev) => {
+      if (prev.includes(event)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((e) => e !== event);
+      }
+      return [...prev, event];
+    });
+  };
+
+  const webhooksBaseUrl = joinUrl(
     backendUrl,
-    `/organizations/${orgId}/workspaces/${workspaceId}/webhook`,
+    `/organizations/${orgId}/workspaces/${workspaceId}/webhooks`,
   );
 
   const buildPayload = () => {
@@ -132,6 +140,7 @@ const WebhookForm = ({
       }
     }
     return {
+      name,
       url,
       enabled,
       events,
@@ -145,9 +154,12 @@ const WebhookForm = ({
 
     try {
       const payload = buildPayload();
+      const requestUrl = isEditMode
+        ? joinUrl(webhooksBaseUrl, `/${webhookId}`)
+        : webhooksBaseUrl;
       const method = isEditMode ? "PUT" : "POST";
 
-      const response = await fetch(webhookBaseUrl, {
+      const response = await fetch(requestUrl, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -157,12 +169,13 @@ const WebhookForm = ({
       if (response.ok) {
         if (isEditMode) {
           toast.success("Webhook updated");
-          onMutate();
+          await mutate();
         } else {
           toast.success("Webhook created");
-          onMutate();
-          router.push(`/${orgId}/workspace/${workspaceId}/settings/webhook`);
         }
+        router.push(
+          `/${orgId}/workspace/${workspaceId}/settings/webhooks`,
+        );
       } else {
         const errorData = await response.json();
         setValidationErrors(parseValidationErrors(errorData));
@@ -178,17 +191,19 @@ const WebhookForm = ({
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(webhookBaseUrl, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const response = await fetch(
+        joinUrl(webhooksBaseUrl, `/${webhookId}`),
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
 
       if (response.ok) {
         toast.success("Webhook deleted");
-        setIsDeleting(false);
-        setIsDeleteDialogOpen(false);
-        onMutate();
-        router.push(`/${orgId}/workspace/${workspaceId}/settings/webhook`);
+        router.push(
+          `/${orgId}/workspace/${workspaceId}/settings/webhooks`,
+        );
       } else {
         console.error("Failed to delete webhook");
         toast.error("Failed to delete webhook");
@@ -207,7 +222,7 @@ const WebhookForm = ({
     setIsRegenerating(true);
     try {
       const response = await fetch(
-        joinUrl(webhookBaseUrl, "/regenerate-secret"),
+        joinUrl(webhooksBaseUrl, `/${webhookId}/regenerate-secret`),
         {
           method: "POST",
           credentials: "include",
@@ -216,7 +231,7 @@ const WebhookForm = ({
 
       if (response.ok) {
         toast.success("Signing secret regenerated");
-        onMutate();
+        await mutate();
         setIsRegenerateDialogOpen(false);
       } else {
         toast.error("Failed to regenerate signing secret");
@@ -256,10 +271,40 @@ const WebhookForm = ({
     );
   };
 
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div>
       <FieldSet className="mb-6">
         <FieldGroup>
+          <Field data-invalid={!!validationErrors.name}>
+            <FieldLabel htmlFor="name">Name</FieldLabel>
+            <Input
+              id="name"
+              type="text"
+              placeholder="My Webhook"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (validationErrors.name) {
+                  setValidationErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.name;
+                    return next;
+                  });
+                }
+              }}
+              disabled={isSubmitting}
+              aria-invalid={!!validationErrors.name}
+              autoFocus
+            />
+            {validationErrors.name && (
+              <FieldError>{validationErrors.name}</FieldError>
+            )}
+          </Field>
+
           <Field data-invalid={!!validationErrors.url}>
             <FieldLabel htmlFor="url">URL</FieldLabel>
             <Input
@@ -279,7 +324,6 @@ const WebhookForm = ({
               }}
               disabled={isSubmitting}
               aria-invalid={!!validationErrors.url}
-              autoFocus
             />
             <FieldDescription>
               The URL that will receive webhook POST requests.

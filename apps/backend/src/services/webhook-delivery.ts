@@ -85,26 +85,28 @@ export function dispatchWebhook(
       const webhooks = await db
         .select()
         .from(webhookTable)
-        .where(eq(webhookTable.workspaceId, workspaceId))
-        .limit(1);
+        .where(eq(webhookTable.workspaceId, workspaceId));
 
       if (webhooks.length === 0) return;
 
-      const webhook = webhooks[0];
-      if (!webhook.enabled) return;
-      if (!webhook.events.includes(event)) return;
-
       const timestamp = new Date().toISOString();
       const body = JSON.stringify({ event, timestamp, workspaceId, data });
-      const signature = computeSignature(body, webhook.signingSecret);
 
-      await deliverWebhook(
-        webhook.url,
-        body,
-        signature,
-        timestamp,
-        webhook.headers,
-      );
+      for (const webhook of webhooks) {
+        if (!webhook.enabled) continue;
+        if (!webhook.events.includes(event)) continue;
+
+        const signature = computeSignature(body, webhook.signingSecret);
+
+        // Fire each delivery independently so one failure doesn't block others
+        void deliverWebhook(
+          webhook.url,
+          body,
+          signature,
+          timestamp,
+          webhook.headers,
+        );
+      }
     } catch (error) {
       logger.error(
         {

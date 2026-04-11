@@ -919,6 +919,7 @@ export type WebhookEvent = z.infer<typeof webhookEventSchema>;
 export const webhookSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
+  name: z.string().min(1).max(100),
   url: z
     .string()
     .url()
@@ -936,6 +937,7 @@ export const webhookSchema = z.object({
 export type Webhook = z.infer<typeof webhookSchema>;
 
 export const webhookCreateSchema = z.object({
+  name: z.string().min(1).max(100),
   url: z
     .string()
     .url()
@@ -948,6 +950,7 @@ export const webhookCreateSchema = z.object({
 });
 
 export const webhookUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
   url: z
     .string()
     .url()

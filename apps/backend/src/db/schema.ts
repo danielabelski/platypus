@@ -529,7 +529,7 @@ export const notificationRead = pgTable(
   ],
 );
 
-// Webhook (one per workspace)
+// Webhook (multiple per workspace)
 
 export const webhook = pgTable(
   "webhook",
@@ -538,8 +538,8 @@ export const webhook = pgTable(
     workspaceId: t
       .text("workspace_id")
       .notNull()
-      .references(() => workspace.id, { onDelete: "cascade" })
-      .unique(),
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    name: t.text("name").notNull().default("Webhook"),
     url: t.text("url").notNull(),
     signingSecret: t.text("signing_secret").notNull(),
     headers: t.jsonb().$type<Record<string, string>>(),

@@ -104,6 +104,9 @@ describe("Webhook Routes", () => {
           "notification.updated",
           "notification.read",
           "notification.dismissed",
+          "card.created",
+          "card.updated",
+          "card.deleted",
         ],
       };
       mockDb.returning.mockResolvedValueOnce([mockWebhook]);
@@ -266,6 +269,9 @@ describe("Webhook Routes", () => {
           "notification.updated",
           "notification.read",
           "notification.dismissed",
+          "card.created",
+          "card.updated",
+          "card.deleted",
         ],
       };
       mockDb.returning.mockResolvedValueOnce([newWebhook]);

@@ -59,6 +59,9 @@ webhook.post(
       "notification.updated",
       "notification.read",
       "notification.dismissed",
+      "card.created",
+      "card.updated",
+      "card.deleted",
     ];
 
     const now = new Date();

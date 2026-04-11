@@ -544,16 +544,7 @@ export const webhook = pgTable(
     signingSecret: t.text("signing_secret").notNull(),
     headers: t.jsonb().$type<Record<string, string>>(),
     enabled: t.boolean("enabled").notNull().default(true),
-    events: t
-      .jsonb("events")
-      .$type<string[]>()
-      .notNull()
-      .default([
-        "notification.created",
-        "notification.updated",
-        "notification.read",
-        "notification.dismissed",
-      ]),
+    events: t.jsonb("events").$type<string[]>().notNull(),
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
     updatedAt: t.timestamp("updated_at").notNull().defaultNow(),
   }),

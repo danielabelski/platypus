@@ -912,6 +912,9 @@ export const webhookEventSchema = z.enum([
   "notification.updated",
   "notification.read",
   "notification.dismissed",
+  "card.created",
+  "card.updated",
+  "card.deleted",
 ]);
 
 export type WebhookEvent = z.infer<typeof webhookEventSchema>;

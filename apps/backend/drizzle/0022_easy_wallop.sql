@@ -1,0 +1,1 @@
+ALTER TABLE "webhook" ALTER COLUMN "events" DROP DEFAULT;

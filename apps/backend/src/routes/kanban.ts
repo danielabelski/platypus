@@ -11,6 +11,7 @@ import {
   agent as agentTable,
 } from "../db/schema.ts";
 import { user } from "../db/auth-schema.ts";
+import { dispatchWebhook } from "../services/webhook-delivery.ts";
 import {
   kanbanBoardCreateSchema,
   kanbanBoardUpdateSchema,
@@ -586,6 +587,9 @@ kanban.post(
       })
       .returning();
 
+    const workspaceId = c.req.param("workspaceId")!;
+    dispatchWebhook(workspaceId, "card.created", record[0]);
+
     return c.json(record[0], 201);
   },
 );
@@ -647,6 +651,9 @@ kanban.put(
     if (record.length === 0) {
       return c.json({ message: "Card not found" }, 404);
     }
+
+    const workspaceId = c.req.param("workspaceId")!;
+    dispatchWebhook(workspaceId, "card.updated", record[0]);
 
     return c.json(record[0]);
   },
@@ -726,6 +733,9 @@ kanban.post(
       .where(eq(kanbanCardTable.id, cardId))
       .limit(1);
 
+    const workspaceId = c.req.param("workspaceId")!;
+    dispatchWebhook(workspaceId, "card.updated", updated[0]);
+
     return c.json(updated[0]);
   },
 );
@@ -760,6 +770,9 @@ kanban.delete(
     if (result.length === 0) {
       return c.json({ message: "Card not found" }, 404);
     }
+
+    const workspaceId = c.req.param("workspaceId")!;
+    dispatchWebhook(workspaceId, "card.deleted", { cardId });
 
     return c.json({ message: "Card deleted" });
   },

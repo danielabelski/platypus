@@ -12,6 +12,7 @@ import {
 import { user } from "../db/auth-schema.ts";
 import { calculateCardPosition } from "../utils/kanban-positioning.ts";
 import { buildResourceUrl } from "../utils/resource-url.ts";
+import { dispatchWebhook } from "../services/webhook-delivery.ts";
 
 export function createKanbanTools(
   workspaceId: string,
@@ -275,6 +276,8 @@ export function createKanbanTools(
           return { error: "Card not found" };
         }
 
+        dispatchWebhook(workspaceId, "card.updated", record[0]);
+
         const boardId = await getBoardIdForCard(cardId);
         const url = boardId
           ? buildResourceUrl(
@@ -324,6 +327,8 @@ export function createKanbanTools(
           updatedAt: now,
         })
         .returning();
+
+      dispatchWebhook(workspaceId, "card.created", record[0]);
 
       const boardId = await getBoardIdForCard(id);
       const url = boardId
@@ -415,6 +420,8 @@ export function createKanbanTools(
         .where(eq(kanbanCardTable.id, cardId))
         .limit(1);
 
+      dispatchWebhook(workspaceId, "card.updated", updated[0]);
+
       const boardId = await getBoardIdForCard(cardId);
       const url = boardId
         ? buildResourceUrl(frontendUrl, orgId, workspaceId, `boards/${boardId}`)
@@ -436,6 +443,8 @@ export function createKanbanTools(
       }
 
       await db.delete(kanbanCardTable).where(eq(kanbanCardTable.id, cardId));
+
+      dispatchWebhook(workspaceId, "card.deleted", { cardId });
 
       return { success: true };
     },

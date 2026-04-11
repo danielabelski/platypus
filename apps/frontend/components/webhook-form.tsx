@@ -51,6 +51,9 @@ const WebhookForm = ({ orgId, workspaceId, webhookId }: WebhookFormProps) => {
     "notification.updated",
     "notification.read",
     "notification.dismissed",
+    "card.created",
+    "card.updated",
+    "card.deleted",
   ] as const;
 
   const EVENT_LABELS: Record<string, string> = {
@@ -58,6 +61,9 @@ const WebhookForm = ({ orgId, workspaceId, webhookId }: WebhookFormProps) => {
     "notification.updated": "Notification updated",
     "notification.read": "Notification read",
     "notification.dismissed": "Notification dismissed",
+    "card.created": "Card created",
+    "card.updated": "Card updated",
+    "card.deleted": "Card deleted",
   };
 
   const [name, setName] = useState("");
@@ -355,7 +361,7 @@ const WebhookForm = ({ orgId, workspaceId, webhookId }: WebhookFormProps) => {
             <FieldDescription className="mb-3">
               Select which events trigger webhook delivery.
             </FieldDescription>
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               {ALL_EVENTS.map((event) => (
                 <div key={event} className="flex items-center gap-3">
                   <Switch

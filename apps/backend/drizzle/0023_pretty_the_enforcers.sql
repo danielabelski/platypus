@@ -29,13 +29,13 @@ CREATE TABLE "trigger_run" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "chat" DROP CONSTRAINT "chat_schedule_id_schedule_id_fk";
+--> statement-breakpoint
+DROP INDEX "idx_chat_schedule_id";--> statement-breakpoint
 ALTER TABLE "schedule" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "schedule_run" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
 DROP TABLE "schedule" CASCADE;--> statement-breakpoint
 DROP TABLE "schedule_run" CASCADE;--> statement-breakpoint
-ALTER TABLE "chat" DROP CONSTRAINT "chat_schedule_id_schedule_id_fk";
---> statement-breakpoint
-DROP INDEX "idx_chat_schedule_id";--> statement-breakpoint
 ALTER TABLE "chat" ADD COLUMN "trigger_id" text;--> statement-breakpoint
 ALTER TABLE "trigger" ADD CONSTRAINT "trigger_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "trigger" ADD CONSTRAINT "trigger_agent_id_agent_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agent"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint

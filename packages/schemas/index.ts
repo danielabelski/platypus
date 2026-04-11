@@ -68,7 +68,7 @@ export const chatSchema = z.object({
   seed: z.number().optional(),
   presencePenalty: z.number().optional(),
   frequencyPenalty: z.number().optional(),
-  scheduleId: z.string().nullable().optional(),
+  triggerId: z.string().nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -129,7 +129,7 @@ export const chatListItemSchema = chatSchema.pick({
   agentId: true,
   providerId: true,
   modelId: true,
-  scheduleId: true,
+  triggerId: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -634,87 +634,125 @@ export type MemoryExtractionOutput = z.infer<
   typeof memoryExtractionOutputSchema
 >;
 
-// Schedule
+// Webhook Event (defined here so trigger schemas can reference it)
 
-export const scheduleSchema = z.object({
-  id: z.string(),
-  workspaceId: z.string(),
-  agentId: z.string(),
-  name: z.string().min(1).max(100),
-  description: z.string().max(500).nullable().optional(),
-  instruction: z.string().min(1).max(10000),
+export const webhookEventSchema = z.enum([
+  "notification.created",
+  "notification.updated",
+  "notification.read",
+  "notification.dismissed",
+  "card.created",
+  "card.updated",
+  "card.deleted",
+]);
+
+export type WebhookEvent = z.infer<typeof webhookEventSchema>;
+
+// Trigger
+
+export const triggerTypeSchema = z.enum(["cron", "event"]);
+
+export type TriggerType = z.infer<typeof triggerTypeSchema>;
+
+export const cronTriggerConfigSchema = z.object({
   cronExpression: z.string().min(1),
   timezone: z.string().default("UTC"),
   isOneOff: z.boolean().default(false),
+});
+
+export type CronTriggerConfig = z.infer<typeof cronTriggerConfigSchema>;
+
+export const eventTriggerFiltersSchema = z.object({
+  boardId: z.string().optional(),
+});
+
+export type EventTriggerFilters = z.infer<typeof eventTriggerFiltersSchema>;
+
+export const eventTriggerConfigSchema = z.object({
+  events: z.array(webhookEventSchema).min(1),
+  filters: eventTriggerFiltersSchema.optional(),
+});
+
+export type EventTriggerConfig = z.infer<typeof eventTriggerConfigSchema>;
+
+export const triggerSchema = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  agentId: z.string(),
+  type: triggerTypeSchema,
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).nullable().optional(),
+  instruction: z.string().min(1).max(10000),
   enabled: z.boolean().default(true),
   maxChatsToKeep: z.number().int().min(1).max(1000).default(50),
   search: z.boolean().default(false),
+  config: z.union([cronTriggerConfigSchema, eventTriggerConfigSchema]),
   lastRunAt: z.date().nullable().optional(),
   nextRunAt: z.date().nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
-export type Schedule = z.infer<typeof scheduleSchema>;
+export type Trigger = z.infer<typeof triggerSchema>;
 
-export const scheduleCreateSchema = scheduleSchema.pick({
+export const triggerCreateSchema = triggerSchema.pick({
   workspaceId: true,
   agentId: true,
+  type: true,
   name: true,
   description: true,
   instruction: true,
-  cronExpression: true,
-  timezone: true,
-  isOneOff: true,
   enabled: true,
   maxChatsToKeep: true,
   search: true,
+  config: true,
 });
 
-export const scheduleUpdateSchema = scheduleSchema
+export const triggerUpdateSchema = triggerSchema
   .pick({
     name: true,
     description: true,
     instruction: true,
-    cronExpression: true,
-    timezone: true,
-    isOneOff: true,
     enabled: true,
     maxChatsToKeep: true,
     agentId: true,
     search: true,
+    type: true,
+    config: true,
   })
   .partial();
 
-// Schedule Run
+// Trigger Run
 
-export const scheduleRunStatusSchema = z.enum([
+export const triggerRunStatusSchema = z.enum([
   "pending",
   "running",
   "success",
   "failed",
 ]);
 
-export type ScheduleRunStatus = z.infer<typeof scheduleRunStatusSchema>;
+export type TriggerRunStatus = z.infer<typeof triggerRunStatusSchema>;
 
-export const scheduleRunSchema = z.object({
+export const triggerRunSchema = z.object({
   id: z.string(),
-  scheduleId: z.string(),
+  triggerId: z.string(),
   chatId: z.string().nullable().optional(),
-  status: scheduleRunStatusSchema,
+  status: triggerRunStatusSchema,
+  eventType: z.string().nullable().optional(),
+  eventData: z.any().nullable().optional(),
   startedAt: z.date(),
   completedAt: z.date().nullable().optional(),
   errorMessage: z.string().nullable().optional(),
   createdAt: z.date(),
 });
 
-export type ScheduleRun = z.infer<typeof scheduleRunSchema>;
+export type TriggerRun = z.infer<typeof triggerRunSchema>;
 
-export const scheduleRunListSchema = z.object({
-  results: z.array(scheduleRunSchema),
+export const triggerRunListSchema = z.object({
+  results: z.array(triggerRunSchema),
 });
 
-export type ScheduleRunList = z.infer<typeof scheduleRunListSchema>;
+export type TriggerRunList = z.infer<typeof triggerRunListSchema>;
 
 // Notification
 
@@ -906,18 +944,6 @@ export const kanbanBoardStateSchema = z.object({
 export type KanbanBoardState = z.infer<typeof kanbanBoardStateSchema>;
 
 // Webhook
-
-export const webhookEventSchema = z.enum([
-  "notification.created",
-  "notification.updated",
-  "notification.read",
-  "notification.dismissed",
-  "card.created",
-  "card.updated",
-  "card.deleted",
-]);
-
-export type WebhookEvent = z.infer<typeof webhookEventSchema>;
 
 export const webhookSchema = z.object({
   id: z.string(),

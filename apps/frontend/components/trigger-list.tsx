@@ -237,7 +237,9 @@ export const TriggerList = ({
                         <EllipsisVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent>
+                    <DropdownMenuContent
+                      onClick={(e) => e.preventDefault()}
+                    >
                       <DropdownMenuItem asChild>
                         <Link
                           className="cursor-pointer"

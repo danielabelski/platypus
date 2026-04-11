@@ -23,6 +23,7 @@ import {
   Zap,
   Play,
   EllipsisVertical,
+  Pencil,
   Trash2,
   Pause,
   List,
@@ -210,17 +211,17 @@ export const TriggerList = ({
                     ) : (
                       <span className="flex items-center gap-1 flex-wrap">
                         <Zap className="h-3 w-3" />
-                        {(
-                          trigger.config as EventTriggerConfig
-                        ).events.map((event) => (
-                          <Badge
-                            key={event}
-                            variant="secondary"
-                            className="text-xs"
-                          >
-                            {event}
-                          </Badge>
-                        ))}
+                        {(trigger.config as EventTriggerConfig).events.map(
+                          (event) => (
+                            <Badge
+                              key={event}
+                              variant="secondary"
+                              className="text-xs"
+                            >
+                              {event}
+                            </Badge>
+                          ),
+                        )}
                       </span>
                     )}
                   </div>
@@ -237,9 +238,15 @@ export const TriggerList = ({
                         <EllipsisVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      onClick={(e) => e.preventDefault()}
-                    >
+                    <DropdownMenuContent onClick={(e) => e.preventDefault()}>
+                      <DropdownMenuItem asChild>
+                        <Link
+                          className="cursor-pointer"
+                          href={`/${orgId}/workspace/${workspaceId}/triggers/${trigger.id}`}
+                        >
+                          <Pencil /> Edit
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <Link
                           className="cursor-pointer"

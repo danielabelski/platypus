@@ -14,6 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EllipsisVertical, Pencil, Trash2 } from "lucide-react";
@@ -131,8 +132,9 @@ export const BoardsList = ({
                           <Pencil /> Edit
                         </Link>
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        className="cursor-pointer"
+                        className="cursor-pointer text-destructive focus:text-destructive"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();

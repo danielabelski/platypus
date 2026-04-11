@@ -14,6 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -21,7 +22,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Bot, EllipsisVertical, Trash2, TriangleAlert } from "lucide-react";
+import {
+  Bot,
+  EllipsisVertical,
+  Pencil,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import { type Skill, type Agent } from "@platypus/schemas";
 import useSWR from "swr";
 import { fetcher, joinUrl } from "@/lib/utils";
@@ -177,11 +184,18 @@ export const SkillsList = ({
                           <EllipsisVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        onClick={(e) => e.preventDefault()}
-                      >
+                      <DropdownMenuContent onClick={(e) => e.preventDefault()}>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            className="cursor-pointer"
+                            href={`/${orgId}/workspace/${workspaceId}/skills/${skill.id}`}
+                          >
+                            <Pencil /> Edit
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          className="cursor-pointer"
+                          className="cursor-pointer text-destructive focus:text-destructive"
                           onSelect={() => handleDeleteClick(skill)}
                         >
                           <Trash2 /> Delete

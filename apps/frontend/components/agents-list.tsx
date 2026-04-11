@@ -25,6 +25,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -387,8 +388,9 @@ export const AgentsList = ({
                     >
                       <Copy /> Clone
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      className="cursor-pointer"
+                      className="cursor-pointer text-destructive focus:text-destructive"
                       onSelect={() => handleDeleteClick(agent)}
                     >
                       <Trash2 /> Delete
@@ -429,8 +431,9 @@ export const AgentsList = ({
                     >
                       <Copy /> Clone
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      className="cursor-pointer"
+                      className="cursor-pointer text-destructive focus:text-destructive"
                       onSelect={() => handleDeleteClick(agent)}
                     >
                       <Trash2 /> Delete

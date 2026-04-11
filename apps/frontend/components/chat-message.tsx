@@ -226,7 +226,7 @@ export const ChatMessage = memo(function ChatMessage({
               toolPart={part as ToolUIPart}
             />
           );
-        } else if (part.type.startsWith("tool-delegate_to_")) {
+        } else if (part.type.startsWith("tool-delegateTo")) {
           // Sub-agent tools get custom UI with robot icon and nested chat
           return (
             <SubAgentTool

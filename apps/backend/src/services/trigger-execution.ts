@@ -16,6 +16,7 @@ import {
   loadTools,
   resolveGenerationConfig,
   loadSkills,
+  loadSubAgents,
   fetchUserContexts,
   fetchFormattedMemories,
   prepareAgentTools,
@@ -170,6 +171,15 @@ export const executeTrigger = async (
     Object.assign(tools, createSearchTools(provider as Provider, aiProvider));
   }
 
+  // 5c. Load sub-agents
+  const { subAgents, subAgentTools } = await loadSubAgents(
+    agent,
+    orgId,
+    workspaceId,
+    frontendUrl,
+  );
+  Object.assign(tools, subAgentTools);
+
   // 6. Load skills
   const skills = await loadSkills(agent, workspaceId);
 
@@ -196,7 +206,7 @@ export const executeTrigger = async (
     user,
     userGlobalContext,
     userWorkspaceContext,
-    undefined, // no sub-agents for triggered runs
+    subAgents,
     memoriesFormatted,
   );
 

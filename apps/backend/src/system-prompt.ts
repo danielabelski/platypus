@@ -132,13 +132,10 @@ You can delegate specialized tasks to the following sub-agents. Each sub-agent h
 ${data.subAgents
   .map(
     (sa) =>
-      `- **${sa.name}**: Use the \`delegate_to_${sa.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(
-          /^_|_$/g,
-          "",
-        )}\` tool. ${sa.description || "No description provided"}`,
+      `- **${sa.name}**: Use the \`delegateTo${sa.name
+        .replace(/[^a-zA-Z0-9]+(.)/g, (_: string, c: string) => c.toUpperCase())
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .replace(/^./, (c: string) => c.toUpperCase())}\` tool. ${sa.description || "No description provided"}`,
   )
   .join("\n")}
 

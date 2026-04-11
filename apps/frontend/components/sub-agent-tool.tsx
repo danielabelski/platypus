@@ -68,17 +68,14 @@ const getStatusBadge = (status: ToolUIPart["state"]) => {
 
 /**
  * Extracts the sub-agent name from the tool name.
- * e.g., "delegate_to_dad_joke_bot" -> "Dad Joke Bot"
+ * e.g., "delegateToDadJokeBot" -> "Dad Joke Bot"
  */
 const extractSubAgentName = (toolName: string): string => {
-  const prefix = "delegate_to_";
+  const prefix = "delegateTo";
   if (toolName.startsWith(prefix)) {
     const namePart = toolName.slice(prefix.length);
-    // Convert snake_case to Title Case
-    return namePart
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
+    // Convert camelCase to Title Case by splitting on uppercase letters
+    return namePart.replace(/([A-Z])/g, " $1").trim();
   }
   return toolName;
 };
@@ -140,7 +137,7 @@ export const SubAgentTool = ({ toolPart }: SubAgentToolProps) => {
         return (
           <LoadSkillTool key={`tool-${index}`} toolPart={part as ToolUIPart} />
         );
-      } else if (part.type.startsWith("tool-delegate_to_")) {
+      } else if (part.type.startsWith("tool-delegateTo")) {
         // Nested sub-agent calls should NOT happen - backend enforces this
         // If this appears, it's an error - show a warning instead of recursing
         const nestedToolPart = part as ToolUIPart;

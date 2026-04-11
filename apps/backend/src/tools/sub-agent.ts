@@ -43,10 +43,10 @@ export const createSubAgentTool = (options: SubAgentToolOptions) => {
   });
 
   // Generate a slugified tool name (e.g., "delegate_to_research_agent")
-  const toolName = `delegate_to_${name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "")}`;
+  const toolName = `delegateTo${name
+    .replace(/[^a-zA-Z0-9]+(.)/g, (_, c) => c.toUpperCase())
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .replace(/^./, (c) => c.toUpperCase())}`;
 
   return {
     toolName,

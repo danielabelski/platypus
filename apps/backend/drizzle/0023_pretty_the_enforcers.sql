@@ -1,4 +1,4 @@
-CREATE TABLE "trigger" (
+CREATE TABLE IF NOT EXISTS "trigger" (
 	"id" text PRIMARY KEY NOT NULL,
 	"workspace_id" text NOT NULL,
 	"agent_id" text NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE "trigger" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "trigger_run" (
+CREATE TABLE IF NOT EXISTS "trigger_run" (
 	"id" text PRIMARY KEY NOT NULL,
 	"trigger_id" text NOT NULL,
 	"chat_id" text,
@@ -29,23 +29,46 @@ CREATE TABLE "trigger_run" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "chat" DROP CONSTRAINT "chat_schedule_id_schedule_id_fk";
+ALTER TABLE "chat" DROP CONSTRAINT IF EXISTS "chat_schedule_id_schedule_id_fk";
 --> statement-breakpoint
-DROP INDEX "idx_chat_schedule_id";--> statement-breakpoint
-ALTER TABLE "schedule" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "schedule_run" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-DROP TABLE "schedule" CASCADE;--> statement-breakpoint
-DROP TABLE "schedule_run" CASCADE;--> statement-breakpoint
-ALTER TABLE "chat" ADD COLUMN "trigger_id" text;--> statement-breakpoint
-ALTER TABLE "trigger" ADD CONSTRAINT "trigger_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "trigger" ADD CONSTRAINT "trigger_agent_id_agent_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agent"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "trigger_run" ADD CONSTRAINT "trigger_run_trigger_id_trigger_id_fk" FOREIGN KEY ("trigger_id") REFERENCES "public"."trigger"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "trigger_run" ADD CONSTRAINT "trigger_run_chat_id_chat_id_fk" FOREIGN KEY ("chat_id") REFERENCES "public"."chat"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "idx_trigger_workspace_id" ON "trigger" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "idx_trigger_next_run_at" ON "trigger" USING btree ("next_run_at");--> statement-breakpoint
-CREATE INDEX "idx_trigger_type" ON "trigger" USING btree ("type");--> statement-breakpoint
-CREATE INDEX "idx_trigger_run_trigger_id" ON "trigger_run" USING btree ("trigger_id");--> statement-breakpoint
-CREATE INDEX "idx_trigger_run_started_at" ON "trigger_run" USING btree ("started_at");--> statement-breakpoint
-ALTER TABLE "chat" ADD CONSTRAINT "chat_trigger_id_trigger_id_fk" FOREIGN KEY ("trigger_id") REFERENCES "public"."trigger"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "idx_chat_trigger_id" ON "chat" USING btree ("trigger_id");--> statement-breakpoint
-ALTER TABLE "chat" DROP COLUMN "schedule_id";
+DROP INDEX IF EXISTS "idx_chat_schedule_id";--> statement-breakpoint
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'schedule') THEN
+    ALTER TABLE "schedule" DISABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'schedule_run') THEN
+    ALTER TABLE "schedule_run" DISABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;--> statement-breakpoint
+DROP TABLE IF EXISTS "schedule" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "schedule_run" CASCADE;--> statement-breakpoint
+ALTER TABLE "chat" ADD COLUMN IF NOT EXISTS "trigger_id" text;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "trigger" ADD CONSTRAINT "trigger_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "trigger" ADD CONSTRAINT "trigger_agent_id_agent_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agent"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "trigger_run" ADD CONSTRAINT "trigger_run_trigger_id_trigger_id_fk" FOREIGN KEY ("trigger_id") REFERENCES "public"."trigger"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "trigger_run" ADD CONSTRAINT "trigger_run_chat_id_chat_id_fk" FOREIGN KEY ("chat_id") REFERENCES "public"."chat"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_trigger_workspace_id" ON "trigger" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_trigger_next_run_at" ON "trigger" USING btree ("next_run_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_trigger_type" ON "trigger" USING btree ("type");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_trigger_run_trigger_id" ON "trigger_run" USING btree ("trigger_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_trigger_run_started_at" ON "trigger_run" USING btree ("started_at");--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "chat" ADD CONSTRAINT "chat_trigger_id_trigger_id_fk" FOREIGN KEY ("trigger_id") REFERENCES "public"."trigger"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_chat_trigger_id" ON "chat" USING btree ("trigger_id");--> statement-breakpoint
+ALTER TABLE "chat" DROP COLUMN IF EXISTS "schedule_id";

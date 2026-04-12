@@ -410,105 +410,105 @@ export function AppSidebar() {
           </div>
         </div>
         <div className="relative min-h-0 flex flex-col flex-1 overflow-hidden">
-        <SidebarContent className="pb-16">
-          {chatGroups.length === 0 && debouncedSearch && (
-            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-              No chats match &ldquo;{debouncedSearch}&rdquo;
-            </div>
-          )}
-          {chatGroups.map((group) => (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>
-                <group.icon className="mr-2 h-4 w-4" />
-                {group.label}
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.chats.map((chat) => (
-                    <SidebarMenuItem key={chat.id}>
-                      <div className="flex items-center justify-between w-full">
-                        <SidebarMenuButton
-                          asChild
-                          isActive={pathname.startsWith(
-                            `/${orgId}/workspace/${workspaceId}/chat/${chat.id}`,
-                          )}
-                        >
-                          <Link
-                            href={`/${orgId}/workspace/${workspaceId}/chat/${chat.id}`}
+          <SidebarContent className="pb-16">
+            {chatGroups.length === 0 && debouncedSearch && (
+              <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                No chats match &ldquo;{debouncedSearch}&rdquo;
+              </div>
+            )}
+            {chatGroups.map((group) => (
+              <SidebarGroup key={group.label}>
+                <SidebarGroupLabel>
+                  <group.icon className="mr-2 h-4 w-4" />
+                  {group.label}
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {group.chats.map((chat) => (
+                      <SidebarMenuItem key={chat.id}>
+                        <div className="flex items-center justify-between w-full">
+                          <SidebarMenuButton
+                            asChild
+                            isActive={pathname.startsWith(
+                              `/${orgId}/workspace/${workspaceId}/chat/${chat.id}`,
+                            )}
                           >
-                            <p className="truncate">{chat.title}</p>
-                          </Link>
-                        </SidebarMenuButton>
-                        <DropdownMenu modal={false}>
-                          <DropdownMenuTrigger asChild>
-                            <SidebarMenuAction className="cursor-pointer text-muted-foreground">
-                              <EllipsisVertical className="h-4 w-4" />
-                            </SidebarMenuAction>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            className="max-w-3xs"
-                            side="right"
-                            align="start"
-                          >
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              onSelect={() => handleTogglePin(chat.id)}
-                              disabled={isTogglingPin}
+                            <Link
+                              href={`/${orgId}/workspace/${workspaceId}/chat/${chat.id}`}
                             >
-                              {chat.isPinned ? (
+                              <p className="truncate">{chat.title}</p>
+                            </Link>
+                          </SidebarMenuButton>
+                          <DropdownMenu modal={false}>
+                            <DropdownMenuTrigger asChild>
+                              <SidebarMenuAction className="cursor-pointer text-muted-foreground">
+                                <EllipsisVertical className="h-4 w-4" />
+                              </SidebarMenuAction>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              className="max-w-3xs"
+                              side="right"
+                              align="start"
+                            >
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onSelect={() => handleTogglePin(chat.id)}
+                                disabled={isTogglingPin}
+                              >
+                                {chat.isPinned ? (
+                                  <>
+                                    <PinOff className="h-4 w-4" /> Unpin
+                                  </>
+                                ) : (
+                                  <>
+                                    <Pin className="h-4 w-4" /> Pin
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onSelect={() => {
+                                  setRenameChatId(chat.id);
+                                  setRenameTitle(chat.title);
+                                  setRenameTags(chat.tags ?? []);
+                                  setRenameValidationErrors({});
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onSelect={() => setDeleteChatId(chat.id)}
+                              >
+                                <Trash2 className="h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                              {chat.tags && chat.tags.length > 0 && (
                                 <>
-                                  <PinOff className="h-4 w-4" /> Unpin
-                                </>
-                              ) : (
-                                <>
-                                  <Pin className="h-4 w-4" /> Pin
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuGroup className="flex flex-wrap p-1 gap-1">
+                                    {chat.tags.map((tag: string) => (
+                                      <Badge
+                                        key={tag}
+                                        className="cursor-default"
+                                        variant="secondary"
+                                      >
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                  </DropdownMenuGroup>
                                 </>
                               )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              onSelect={() => {
-                                setRenameChatId(chat.id);
-                                setRenameTitle(chat.title);
-                                setRenameTags(chat.tags ?? []);
-                                setRenameValidationErrors({});
-                              }}
-                            >
-                              <Pencil className="h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              onSelect={() => setDeleteChatId(chat.id)}
-                            >
-                              <Trash2 className="h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                            {chat.tags && chat.tags.length > 0 && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuGroup className="flex flex-wrap p-1 gap-1">
-                                  {chat.tags.map((tag: string) => (
-                                    <Badge
-                                      key={tag}
-                                      className="cursor-default"
-                                      variant="secondary"
-                                    >
-                                      {tag}
-                                    </Badge>
-                                  ))}
-                                </DropdownMenuGroup>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
-        </SidebarContent>
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-sidebar to-transparent" />
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
+          </SidebarContent>
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-sidebar to-transparent" />
         </div>
       </Sidebar>
 

@@ -728,9 +728,10 @@ export function KanbanBoard({
             </SortableContext>
             <button
               onClick={handleAddColumn}
-              className="flex items-center justify-center w-80 min-w-80 shrink-0 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/30 text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+              className="flex flex-col items-center justify-center w-40 min-w-40 shrink-0 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/30 text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer"
             >
-              <Plus className="h-5 w-5 mr-2" /> Add Column
+              <Plus className="h-8 w-8" />
+              <span className="text-sm">Add Column</span>
             </button>
           </div>
         </div>

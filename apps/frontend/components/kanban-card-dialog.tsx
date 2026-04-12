@@ -438,10 +438,10 @@ export function KanbanCardDialog({
             </TabsContent>
           </Tabs>
         ) : (
-          <div className="flex flex-row gap-4 min-h-0 flex-1 overflow-hidden">
+          <div className="flex flex-row gap-2 min-h-0 flex-1 overflow-hidden">
             {/* Main content - Title, Body, and Comments */}
             <div
-              className="flex-1 min-w-0 space-y-4 overflow-y-auto pr-3"
+              className="flex-1 min-w-0 space-y-4 overflow-y-auto pr-6"
               onBlur={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget)) {
                   setIsEditing(false);

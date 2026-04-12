@@ -368,7 +368,7 @@ export const trigger = pgTable(
     description: t.text("description"),
     instruction: t.text("instruction").notNull(),
     enabled: t.boolean("enabled").notNull().default(true),
-    maxChatsToKeep: t.integer("max_chats_to_keep").notNull().default(50),
+    maxChatsToKeep: t.integer("max_chats_to_keep").notNull().default(10),
     search: t.boolean("search").notNull().default(false),
     config: t.jsonb("config").notNull(),
     lastRunAt: t.timestamp("last_run_at"),
@@ -461,6 +461,17 @@ export const kanbanCard = pgTable(
     title: t.text("title").notNull(),
     body: t.text("body"),
     labelIds: t.jsonb("label_ids").$type<string[]>().notNull().default([]),
+    assignees: t
+      .jsonb("assignees")
+      .$type<{ type: "user" | "agent"; id: string }[]>()
+      .notNull()
+      .default([]),
+    dueDate: t.timestamp("due_date"),
+    priority: t
+      .text("priority")
+      .$type<"none" | "low" | "medium" | "high" | "urgent">()
+      .notNull()
+      .default("none"),
     position: t.real("position").notNull(),
     createdByUserId: t
       .text("created_by_user_id")
@@ -480,6 +491,9 @@ export const kanbanCard = pgTable(
   (t) => [
     index("idx_kanban_card_column_id").on(t.columnId),
     index("idx_kanban_card_label_ids").using("gin", t.labelIds),
+    index("idx_kanban_card_assignees").using("gin", t.assignees),
+    index("idx_kanban_card_due_date").on(t.dueDate),
+    index("idx_kanban_card_priority").on(t.priority),
     index("idx_kanban_card_column_position").on(t.columnId, t.position),
   ],
 );

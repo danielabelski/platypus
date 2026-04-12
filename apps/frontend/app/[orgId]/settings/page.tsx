@@ -16,9 +16,9 @@ const OrgSettingsPage = () => {
       <h1 className="text-2xl font-bold mb-4">Organization Settings</h1>
       <div className="grid grid-cols-2 gap-6 mb-4">
         <div>
-          <p className="text-sm text-muted-foreground mb-2">Organization ID</p>
+          <p className="text-sm mb-2">Organization ID</p>
           <div className="flex items-center justify-between">
-            <p className="font-mono">{orgId}</p>
+            <p className="font-mono text-muted-foreground">{orgId}</p>
             <Button
               className="text-muted-foreground"
               variant="ghost"

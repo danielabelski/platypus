@@ -39,3 +39,4 @@ yarn-error.log*
 
 compose.override.yaml
 data
+.playwright-cli

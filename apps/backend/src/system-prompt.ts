@@ -135,7 +135,9 @@ ${data.subAgents
       `- **${sa.name}**: Use the \`delegateTo${sa.name
         .replace(/[^a-zA-Z0-9]+(.)/g, (_: string, c: string) => c.toUpperCase())
         .replace(/[^a-zA-Z0-9]/g, "")
-        .replace(/^./, (c: string) => c.toUpperCase())}\` tool. ${sa.description || "No description provided"}`,
+        .replace(/^./, (c: string) =>
+          c.toUpperCase(),
+        )}\` tool. ${sa.description || "No description provided"}`,
   )
   .join("\n")}
 

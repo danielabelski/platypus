@@ -57,6 +57,14 @@ import {
 
 type ColumnWithCards = KanbanColumn & { cards: KanbanCard[] };
 
+const DROP_ZONE_PREFIX = "column-drop-";
+
+function parseDropZoneId(id: string): string | null {
+  return id.startsWith(DROP_ZONE_PREFIX)
+    ? id.slice(DROP_ZONE_PREFIX.length)
+    : null;
+}
+
 export function KanbanBoard({
   boardId,
   orgId,
@@ -92,8 +100,29 @@ export function KanbanBoard({
     fetcher,
   );
 
-  const [localColumns, setLocalColumns] = useState<ColumnWithCards[] | null>(
+  const [localColumns, _setLocalColumns] = useState<ColumnWithCards[] | null>(
     null,
+  );
+  const localColumnsRef = useRef<ColumnWithCards[] | null>(null);
+  const setLocalColumns = useCallback(
+    (
+      action:
+        | ColumnWithCards[]
+        | null
+        | ((prev: ColumnWithCards[] | null) => ColumnWithCards[] | null),
+    ) => {
+      if (typeof action === "function") {
+        _setLocalColumns((prev) => {
+          const next = action(prev);
+          localColumnsRef.current = next;
+          return next;
+        });
+      } else {
+        localColumnsRef.current = action;
+        _setLocalColumns(action);
+      }
+    },
+    [],
   );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"column" | "card" | null>(null);
@@ -184,65 +213,82 @@ export function KanbanBoard({
     [columns],
   );
 
-  const handleDragOver = useCallback(
-    (event: DragOverEvent) => {
-      const { active, over } = event;
-      if (!over || !localColumns || activeType !== "card") return;
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over || activeTypeRef.current !== "card") return;
 
-      const activeColumn = localColumns.find((col) =>
-        col.cards.some((c) => c.id === active.id),
+    const cols = localColumnsRef.current;
+    if (!cols) return;
+
+    const activeColumn = cols.find((col) =>
+      col.cards.some((c) => c.id === active.id),
+    );
+    const overId = String(over.id);
+    const droppableColumnId = parseDropZoneId(overId);
+    const overColumn =
+      (droppableColumnId
+        ? cols.find((col) => col.id === droppableColumnId)
+        : null) ??
+      cols.find((col) => col.id === over.id) ??
+      cols.find((col) => col.cards.some((c) => c.id === over.id));
+
+    if (!activeColumn || !overColumn) return;
+
+    // Same column reorder
+    if (activeColumn.id === overColumn.id) {
+      const activeIndex = activeColumn.cards.findIndex(
+        (c) => c.id === active.id,
       );
-      const overId = String(over.id);
-      const droppableColumnId = overId.startsWith("column-drop-")
-        ? overId.replace("column-drop-", "")
-        : null;
-      const overColumn =
-        (droppableColumnId
-          ? localColumns.find((col) => col.id === droppableColumnId)
-          : null) ??
-        localColumns.find((col) => col.id === over.id) ??
-        localColumns.find((col) => col.cards.some((c) => c.id === over.id));
-
-      if (!activeColumn || !overColumn) return;
-
-      // Same column reorder
-      if (activeColumn.id === overColumn.id) {
-        const activeIndex = activeColumn.cards.findIndex(
-          (c) => c.id === active.id,
-        );
-        const overIndex = overColumn.cards.findIndex((c) => c.id === over.id);
-        if (activeIndex !== overIndex && overIndex >= 0) {
-          setLocalColumns((prev) => {
-            if (!prev) return prev;
-            const newCols = prev.map((c) => ({ ...c, cards: [...c.cards] }));
-            const col = newCols.find((c) => c.id === activeColumn.id)!;
-            const [movedCard] = col.cards.splice(activeIndex, 1);
-            col.cards.splice(overIndex, 0, movedCard);
-            return newCols;
-          });
-        }
-        return;
+      const overIndex = overColumn.cards.findIndex((c) => c.id === over.id);
+      // overIndex === -1 means hovering over the column drop zone → move to end
+      const targetIndex =
+        overIndex === -1 ? activeColumn.cards.length - 1 : overIndex;
+      if (activeIndex !== targetIndex) {
+        setLocalColumns((prev) => {
+          if (!prev) return prev;
+          return prev.map((c) =>
+            c.id === activeColumn.id
+              ? { ...c, cards: arrayMove(c.cards, activeIndex, targetIndex) }
+              : c,
+          );
+        });
       }
+      return;
+    }
 
-      // Cross-column move
-      setLocalColumns((prev) => {
-        if (!prev) return prev;
-        const newCols = prev.map((c) => ({ ...c, cards: [...c.cards] }));
-        const fromCol = newCols.find((c) => c.id === activeColumn.id)!;
-        const toCol = newCols.find((c) => c.id === overColumn.id)!;
-        const cardIndex = fromCol.cards.findIndex((c) => c.id === active.id);
-        const [movedCard] = fromCol.cards.splice(cardIndex, 1);
-        const overIndex = toCol.cards.findIndex((c) => c.id === over.id);
-        if (overIndex >= 0) {
-          toCol.cards.splice(overIndex, 0, movedCard);
-        } else {
-          toCol.cards.push(movedCard);
+    // Cross-column move
+    const activeColId = activeColumn.id;
+    const overColId = overColumn.id;
+    const overCardId = over.id;
+    setLocalColumns((prev) => {
+      if (!prev) return prev;
+      return prev.map((c) => {
+        if (c.id === activeColId) {
+          return {
+            ...c,
+            cards: c.cards.filter((card) => card.id !== active.id),
+          };
         }
-        return newCols;
+        if (c.id === overColId) {
+          const movedCard = activeColumn.cards.find(
+            (card) => card.id === active.id,
+          );
+          if (!movedCard) return c;
+          const newCards = [...c.cards];
+          const overIndex = newCards.findIndex(
+            (card) => card.id === overCardId,
+          );
+          if (overIndex >= 0) {
+            newCards.splice(overIndex, 0, movedCard);
+          } else {
+            newCards.push(movedCard);
+          }
+          return { ...c, cards: newCards };
+        }
+        return c;
       });
-    },
-    [activeType, localColumns],
-  );
+    });
+  }, []);
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
@@ -251,22 +297,27 @@ export function KanbanBoard({
       setActiveType(null);
       activeTypeRef.current = null;
 
-      if (!over || !localColumns) {
+      // Read the latest localColumns from the ref to avoid stale closures.
+      // React may batch state updates from handleDragOver and handleDragEnd
+      // within the same frame, so the closure variable can be outdated.
+      const cols = localColumnsRef.current;
+
+      if (!over || !cols) {
         setLocalColumns(null);
         return;
       }
 
       if (active.data.current?.type === "column") {
-        const oldIndex = localColumns.findIndex((c) => c.id === active.id);
+        const oldIndex = cols.findIndex((c) => c.id === active.id);
         // over.id may be a column id or a card id within that column
-        let newIndex = localColumns.findIndex((c) => c.id === over.id);
+        let newIndex = cols.findIndex((c) => c.id === over.id);
         if (newIndex === -1) {
-          newIndex = localColumns.findIndex((c) =>
+          newIndex = cols.findIndex((c) =>
             c.cards.some((card) => card.id === over.id),
           );
         }
         if (oldIndex !== newIndex && newIndex !== -1) {
-          const reordered = arrayMove(localColumns, oldIndex, newIndex);
+          const reordered = arrayMove(cols, oldIndex, newIndex);
           setLocalColumns(reordered);
           try {
             await fetch(joinUrl(baseUrl, "/columns/reorder"), {
@@ -289,7 +340,7 @@ export function KanbanBoard({
       }
 
       // Card drag end
-      const column = localColumns.find((col) =>
+      const column = cols.find((col) =>
         col.cards.some((c) => c.id === active.id),
       );
       if (!column) {
@@ -297,8 +348,65 @@ export function KanbanBoard({
         return;
       }
 
-      const cardIndex = column.cards.findIndex((c) => c.id === active.id);
-      const afterCardId = cardIndex > 0 ? column.cards[cardIndex - 1].id : null;
+      // Determine afterCardId using the drop target rather than the local
+      // array order.  During cross-column drags the local state may not
+      // reflect the visual order shown by dnd-kit's CSS transforms, so
+      // reading the position from the array can produce the wrong value.
+      const overId = String(over.id);
+      const isDropZone = parseDropZoneId(overId) !== null;
+      const otherCards = column.cards.filter((c) => c.id !== active.id);
+
+      let afterCardId: string | null;
+      if (isDropZone || otherCards.length === 0) {
+        // Dropped on empty area or column has no other cards
+        afterCardId =
+          otherCards.length > 0 ? otherCards[otherCards.length - 1].id : null;
+      } else {
+        // Dropped over a specific card – decide whether to go before or
+        // after it by comparing the dragged card's current centre-Y with
+        // the over card's centre-Y.
+        const overIdx = otherCards.findIndex((c) => c.id === over.id);
+        if (overIdx === -1) {
+          // over card is the active card itself – fall back to array order
+          const cardIndex = column.cards.findIndex((c) => c.id === active.id);
+          afterCardId = cardIndex > 0 ? column.cards[cardIndex - 1].id : null;
+        } else {
+          const activeTranslated =
+            active.rect.current.translated ?? active.rect.current.initial;
+          const activeCenterY = activeTranslated
+            ? activeTranslated.top + activeTranslated.height / 2
+            : 0;
+          const overCenterY = over.rect.top + over.rect.height / 2;
+          if (activeCenterY > overCenterY) {
+            // Active is below the over card → place after it
+            afterCardId = otherCards[overIdx].id;
+          } else {
+            // Active is above the over card → place before it
+            afterCardId = overIdx > 0 ? otherCards[overIdx - 1].id : null;
+          }
+        }
+      }
+
+      // Reorder local state to match the computed position so the UI
+      // doesn't flash the wrong order when dnd-kit removes its transforms.
+      const columnId = column.id;
+      setLocalColumns((prev) => {
+        if (!prev) return prev;
+        return prev.map((c) => {
+          if (c.id !== columnId) return c;
+          const cards = [...c.cards];
+          const idx = cards.findIndex((card) => card.id === active.id);
+          if (idx === -1) return c;
+          const [movedCard] = cards.splice(idx, 1);
+          if (afterCardId === null) {
+            cards.unshift(movedCard);
+          } else {
+            const afterIdx = cards.findIndex((card) => card.id === afterCardId);
+            cards.splice(afterIdx + 1, 0, movedCard);
+          }
+          return { ...c, cards };
+        });
+      });
 
       try {
         await fetch(joinUrl(baseUrl, `/cards/${active.id}/move`), {
@@ -316,7 +424,7 @@ export function KanbanBoard({
         setLocalColumns(null);
       }
     },
-    [localColumns, baseUrl, mutate],
+    [baseUrl, mutate],
   );
 
   const handleAddColumn = useCallback(() => {

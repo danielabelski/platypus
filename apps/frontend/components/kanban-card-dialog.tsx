@@ -668,10 +668,25 @@ export function KanbanCardDialog({
           </div>
         )}
         <DialogFooter className="shrink-0">
-          <Button variant="secondary" onClick={() => onDelete(card.id)}>
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="secondary">
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-4">
+              <p className="text-sm mb-3">Delete this card?</p>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="w-full"
+                onClick={() => onDelete(card.id)}
+              >
+                Delete
+              </Button>
+            </PopoverContent>
+          </Popover>
           <Button
             onClick={() =>
               onSave(card.id, {

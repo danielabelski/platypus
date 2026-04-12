@@ -15,6 +15,7 @@ import {
   Sparkles,
   KanbanSquare,
   Zap,
+  Radio,
 } from "lucide-react";
 
 import {
@@ -179,6 +180,19 @@ export function CommandMenu({ orgId, workspaceId }: CommandMenuProps) {
           >
             <Zap />
             <span>New Trigger</span>
+          </CommandItem>
+          <CommandItem
+            className="cursor-pointer"
+            onSelect={() => {
+              runCommand(() =>
+                router.push(
+                  `/${orgId}/workspace/${workspaceId}/settings/webhooks/create`,
+                ),
+              );
+            }}
+          >
+            <Radio />
+            <span>Add Webhook</span>
           </CommandItem>
           <CommandItem
             className="cursor-pointer"

@@ -3,7 +3,9 @@ import { buildResourceUrl } from "./resource-url.ts";
 
 describe("buildResourceUrl", () => {
   it("should return undefined when frontendUrl is undefined", () => {
-    expect(buildResourceUrl(undefined, "org-1", "ws-1", "chat/c1")).toBeUndefined();
+    expect(
+      buildResourceUrl(undefined, "org-1", "ws-1", "chat/c1"),
+    ).toBeUndefined();
   });
 
   it("should build a correct resource URL", () => {

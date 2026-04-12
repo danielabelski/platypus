@@ -99,9 +99,7 @@ describe("event-dispatch", () => {
 
     it("should skip disabled webhooks", async () => {
       const webhook = makeWebhook({ enabled: false });
-      mockDb.where
-        .mockResolvedValueOnce([webhook])
-        .mockResolvedValueOnce([]);
+      mockDb.where.mockResolvedValueOnce([webhook]).mockResolvedValueOnce([]);
 
       dispatchEvent("ws-1", "card.created", { cardId: "c1" });
       await flushMicrotasks();
@@ -111,9 +109,7 @@ describe("event-dispatch", () => {
 
     it("should skip webhooks not subscribed to the event", async () => {
       const webhook = makeWebhook({ events: ["card.deleted"] });
-      mockDb.where
-        .mockResolvedValueOnce([webhook])
-        .mockResolvedValueOnce([]);
+      mockDb.where.mockResolvedValueOnce([webhook]).mockResolvedValueOnce([]);
 
       dispatchEvent("ws-1", "card.created", { cardId: "c1" });
       await flushMicrotasks();
@@ -144,9 +140,7 @@ describe("event-dispatch", () => {
       const trigger = makeEventTrigger({
         config: { events: ["card.deleted"] },
       });
-      mockDb.where
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([trigger]);
+      mockDb.where.mockResolvedValueOnce([]).mockResolvedValueOnce([trigger]);
 
       dispatchEvent("ws-1", "card.created", { cardId: "c1" });
       await flushMicrotasks();
@@ -161,9 +155,7 @@ describe("event-dispatch", () => {
           filters: { boardId: "board-1" },
         },
       });
-      mockDb.where
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([trigger]);
+      mockDb.where.mockResolvedValueOnce([]).mockResolvedValueOnce([trigger]);
 
       // Event data has a different boardId
       dispatchEvent("ws-1", "card.created", {
@@ -182,9 +174,7 @@ describe("event-dispatch", () => {
           filters: { boardId: "board-1" },
         },
       });
-      mockDb.where
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([trigger]);
+      mockDb.where.mockResolvedValueOnce([]).mockResolvedValueOnce([trigger]);
 
       dispatchEvent("ws-1", "card.created", {
         cardId: "c1",
@@ -202,9 +192,7 @@ describe("event-dispatch", () => {
           filters: { columnId: "col-1" },
         },
       });
-      mockDb.where
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([trigger]);
+      mockDb.where.mockResolvedValueOnce([]).mockResolvedValueOnce([trigger]);
 
       dispatchEvent("ws-1", "card.created", {
         cardId: "c1",
@@ -237,9 +225,7 @@ describe("event-dispatch", () => {
 
     it("should not throw when trigger execution fails", async () => {
       const trigger = makeEventTrigger();
-      mockDb.where
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([trigger]);
+      mockDb.where.mockResolvedValueOnce([]).mockResolvedValueOnce([trigger]);
 
       mockExecuteTrigger.mockRejectedValue(new Error("Execution failed"));
 

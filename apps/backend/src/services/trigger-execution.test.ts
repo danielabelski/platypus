@@ -221,9 +221,7 @@ describe("trigger-execution", () => {
     });
 
     it("should throw and mark run as failed when workspace not found", async () => {
-      mockDb.limit
-        .mockResolvedValueOnce([mockAgent])
-        .mockResolvedValueOnce([]); // workspace not found
+      mockDb.limit.mockResolvedValueOnce([mockAgent]).mockResolvedValueOnce([]); // workspace not found
 
       await expect(executeTrigger(baseTrigger as any)).rejects.toThrow(
         "Workspace 'ws-1' not found",

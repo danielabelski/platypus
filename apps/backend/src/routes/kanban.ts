@@ -900,7 +900,11 @@ kanban.delete(
     }
 
     const workspaceId = c.req.param("workspaceId")!;
-    dispatchEvent(workspaceId, "card.deleted", { cardId, boardId, columnId: result[0].columnId });
+    dispatchEvent(workspaceId, "card.deleted", {
+      cardId,
+      boardId,
+      columnId: result[0].columnId,
+    });
 
     return c.json({ message: "Card deleted" });
   },

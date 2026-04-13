@@ -1,4 +1,5 @@
 import { Agent, Provider } from "@platypus/schemas";
+import { Bot } from "lucide-react";
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -40,11 +41,26 @@ export const ModelSelectorDialog = ({
           size="sm"
           className="max-w-40 overflow-hidden sm:max-w-none"
         >
-          <span className="truncate">
-            {agentId
-              ? selectedAgent?.name || "Select model"
-              : modelId || "Select model"}
-          </span>
+          {selectedAgent ? (
+            <>
+              {selectedAgent.avatarUrl ? (
+                <img
+                  src={selectedAgent.avatarUrl}
+                  alt={selectedAgent.name}
+                  className="size-4 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex size-4 items-center justify-center rounded-full bg-muted">
+                  <Bot className="size-2.5 text-muted-foreground" />
+                </div>
+              )}
+              <span className="truncate">{selectedAgent.name}</span>
+            </>
+          ) : (
+            <span className="truncate">
+              {modelId || "Select model"}
+            </span>
+          )}
         </Button>
       </ModelSelectorTrigger>
       <ModelSelectorContent>
@@ -64,7 +80,20 @@ export const ModelSelectorDialog = ({
                     onOpenChange(false);
                   }}
                 >
-                  {agent.name}
+                  <div className="flex items-center gap-2">
+                    {agent.avatarUrl ? (
+                      <img
+                        src={agent.avatarUrl}
+                        alt={agent.name}
+                        className="size-5 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-5 items-center justify-center rounded-full bg-muted">
+                        <Bot className="size-3 text-muted-foreground" />
+                      </div>
+                    )}
+                    <span>{agent.name}</span>
+                  </div>
                 </ModelSelectorItem>
               ))}
             </ModelSelectorGroup>

@@ -265,7 +265,7 @@ export const AgentsList = ({
       <ul className="grid grid-cols-1 lg:grid-cols-2 grid-rows-1 gap-4">
         {agents.map((agent) => (
           <li key={agent.id}>
-            <Item variant="outline" className="h-full">
+            <Item variant="outline" className="h-full items-stretch">
               {agent.avatarUrl ? (
                 <ItemMedia variant="image" className="size-12 rounded-lg">
                   <img
@@ -284,10 +284,10 @@ export const AgentsList = ({
               )}
               <ItemContent>
                 <ItemTitle>{agent.name}</ItemTitle>
-                <ItemDescription className="text-xs">
+                <ItemDescription className="text-xs line-clamp-3">
                   {agent.description}
                 </ItemDescription>
-                <div className="flex gap-3 mt-1.5 text-xs text-muted-foreground">
+                <div className="flex gap-3 mt-auto text-xs text-muted-foreground">
                   {agent.toolSetIds?.length ? (
                     <Tooltip>
                       <TooltipTrigger asChild>

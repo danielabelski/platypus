@@ -9,6 +9,7 @@ import {
   ModelSelectorList,
   ModelSelectorTrigger,
 } from "./ai-elements/model-selector";
+import { AgentAvatar } from "./agent-avatar";
 import { Button } from "./ui/button";
 
 interface ModelSelectorDialogProps {
@@ -40,6 +41,9 @@ export const ModelSelectorDialog = ({
           size="sm"
           className="max-w-40 overflow-hidden sm:max-w-none"
         >
+          {selectedAgent && (
+            <AgentAvatar agent={selectedAgent} className="size-4" />
+          )}
           <span className="truncate">
             {agentId
               ? selectedAgent?.name || "Select model"
@@ -64,6 +68,7 @@ export const ModelSelectorDialog = ({
                     onOpenChange(false);
                   }}
                 >
+                  <AgentAvatar agent={agent} className="size-5" />
                   {agent.name}
                 </ModelSelectorItem>
               ))}

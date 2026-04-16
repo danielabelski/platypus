@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MessageCircle, Calendar } from "lucide-react";
+import { MessageCircle, Calendar, User } from "lucide-react";
 import type {
   KanbanCard,
   KanbanLabel,
@@ -12,7 +12,8 @@ import type {
 import { KANBAN_CARD_PRIORITIES } from "@platypus/schemas";
 import { KanbanLabelBadge } from "@/components/kanban-label-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn, getInitials } from "@/lib/utils";
+import { AgentAvatar } from "@/components/agent-avatar";
+import { cn } from "@/lib/utils";
 
 function getDueDateStatus(dueDate: string): "overdue" | "due-soon" | "normal" {
   const now = new Date();
@@ -132,19 +133,30 @@ const KanbanCardComponentInner = function KanbanCardComponent({
           )}
           {resolvedAssignees.length > 0 && (
             <div className="flex items-center -space-x-1 ml-auto">
-              {visibleAssignees.map((assignee) => (
-                <Avatar
-                  key={`${assignee.type}-${assignee.id}`}
-                  className="size-5 border border-background"
-                >
-                  {assignee.image && (
-                    <AvatarImage src={assignee.image} alt={assignee.name} />
-                  )}
-                  <AvatarFallback className="text-[8px]">
-                    {getInitials(assignee.name)}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
+              {visibleAssignees.map((assignee) =>
+                assignee.type === "agent" ? (
+                  <AgentAvatar
+                    key={`${assignee.type}-${assignee.id}`}
+                    agent={{
+                      name: assignee.name,
+                      avatarUrl: assignee.image ?? undefined,
+                    }}
+                    className="size-5 border border-background"
+                  />
+                ) : (
+                  <Avatar
+                    key={`${assignee.type}-${assignee.id}`}
+                    className="size-5 border border-background"
+                  >
+                    {assignee.image && (
+                      <AvatarImage src={assignee.image} alt={assignee.name} />
+                    )}
+                    <AvatarFallback>
+                      <User className="size-3 text-muted-foreground" />
+                    </AvatarFallback>
+                  </Avatar>
+                ),
+              )}
               {overflowCount > 0 && (
                 <div className="size-5 rounded-full bg-muted border border-background flex items-center justify-center">
                   <span className="text-[8px] text-muted-foreground">

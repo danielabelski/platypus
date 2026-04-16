@@ -38,12 +38,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trash2, Calendar as CalendarIcon, Check, Users } from "lucide-react";
-import { cn, fetcher, getInitials, joinUrl } from "@/lib/utils";
+import {
+  Trash2,
+  Calendar as CalendarIcon,
+  Check,
+  Users,
+  User,
+} from "lucide-react";
+import { cn, fetcher, joinUrl } from "@/lib/utils";
 import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AgentAvatar } from "@/components/agent-avatar";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 
@@ -112,19 +119,24 @@ function AssigneePicker({
           >
             {assigned && assignedName ? (
               <>
-                <span className="relative flex size-5 shrink-0 overflow-hidden rounded-full">
-                  {assignedImage ? (
-                    <img
-                      src={assignedImage}
-                      alt={assignedName}
-                      className="aspect-square size-full object-cover"
-                    />
-                  ) : (
-                    <span className="flex size-full items-center justify-center rounded-full bg-muted-foreground/20 text-[8px]">
-                      {getInitials(assignedName)}
-                    </span>
-                  )}
-                </span>
+                {assigned.type === "agent" ? (
+                  <AgentAvatar
+                    agent={{
+                      name: assignedName,
+                      avatarUrl: assignedImage ?? undefined,
+                    }}
+                    className="size-5"
+                  />
+                ) : (
+                  <Avatar className="size-5">
+                    {assignedImage && (
+                      <AvatarImage src={assignedImage} alt={assignedName} />
+                    )}
+                    <AvatarFallback>
+                      <User className="size-3 text-muted-foreground" />
+                    </AvatarFallback>
+                  </Avatar>
+                )}
                 <span className="truncate">{assignedName}</span>
               </>
             ) : (
@@ -153,8 +165,8 @@ function AssigneePicker({
                       {user.image && (
                         <AvatarImage src={user.image} alt={user.name} />
                       )}
-                      <AvatarFallback className="text-[8px]">
-                        {getInitials(user.name)}
+                      <AvatarFallback>
+                        <User className="size-3 text-muted-foreground" />
                       </AvatarFallback>
                     </Avatar>
                     <span className="truncate flex-1 text-left">
@@ -179,14 +191,7 @@ function AssigneePicker({
                   )}
                   onClick={() => handleSelect("agent", agent.id)}
                 >
-                  <Avatar className="size-5">
-                    {agent.avatarUrl && (
-                      <AvatarImage src={agent.avatarUrl} alt={agent.name} />
-                    )}
-                    <AvatarFallback className="text-[8px]">
-                      {getInitials(agent.name)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <AgentAvatar agent={agent} className="size-5" />
                   <span className="truncate flex-1 text-left">
                     {agent.name}
                   </span>

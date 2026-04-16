@@ -44,6 +44,7 @@ import {
   Check,
   Users,
   User,
+  Pencil,
 } from "lucide-react";
 import { cn, fetcher, joinUrl } from "@/lib/utils";
 import { useBackendUrl } from "@/app/client-context";
@@ -407,46 +408,50 @@ export function KanbanCardDialog({
                 }}
               >
                 {isEditing ? (
-                  <Input
-                    autoFocus={focusField === "title"}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="text-lg font-semibold"
-                    placeholder="Card title"
-                  />
+                  <>
+                    <Input
+                      autoFocus={focusField === "title"}
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="text-lg font-semibold"
+                      placeholder="Card title"
+                    />
+                    <Textarea
+                      autoFocus={focusField === "body"}
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      placeholder="Add a description..."
+                      rows={6}
+                      className="min-h-[150px]"
+                    />
+                  </>
                 ) : (
-                  <h2
-                    className="text-lg font-semibold cursor-pointer"
-                    onClick={() => enterEditing("title")}
-                  >
-                    {title}
-                  </h2>
-                )}
-                {isEditing ? (
-                  <Textarea
-                    autoFocus={focusField === "body"}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    placeholder="Add a description..."
-                    rows={6}
-                    className="min-h-[150px]"
-                  />
-                ) : body ? (
-                  <div
-                    className="prose prose-sm dark:prose-invert max-w-none cursor-pointer min-h-[150px]"
-                    onClick={() => enterEditing("body")}
-                  >
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {body}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <p
-                    className="text-sm text-muted-foreground cursor-pointer min-h-[150px] hover:text-foreground"
-                    onClick={() => enterEditing("body")}
-                  >
-                    Click to add a description...
-                  </p>
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-lg font-semibold">{title}</h2>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => enterEditing("title")}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="min-h-[150px]">
+                      {body ? (
+                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {body}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No description.
+                        </p>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -575,19 +580,25 @@ export function KanbanCardDialog({
                   onToggle={toggleAssignee}
                 />
 
-                <div className="text-xs text-muted-foreground space-y-1.5">
-                  {card.createdByName && (
-                    <p>
-                      <span className="font-medium">Created by:</span>{" "}
-                      {card.createdByName}
-                    </p>
-                  )}
-                  {card.lastEditedByName && (
-                    <p>
-                      <span className="font-medium">Last edited by:</span>{" "}
-                      {card.lastEditedByName}
-                    </p>
-                  )}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">
+                    Created
+                  </p>
+                  <p className="text-xs text-muted-foreground/70">
+                    {format(new Date(card.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                    {card.createdByName && <> by {card.createdByName}</>}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">
+                    Updated
+                  </p>
+                  <p className="text-xs text-muted-foreground/70">
+                    {format(new Date(card.updatedAt), "MMM d, yyyy 'at' h:mm a")}
+                    {card.lastEditedByName && (
+                      <> by {card.lastEditedByName}</>
+                    )}
+                  </p>
                 </div>
               </div>
             </TabsContent>
@@ -715,46 +726,50 @@ export function KanbanCardDialog({
               }}
             >
               {isEditing ? (
-                <Input
-                  autoFocus={focusField === "title"}
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="text-lg font-semibold"
-                  placeholder="Card title"
-                />
+                <>
+                  <Input
+                    autoFocus={focusField === "title"}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="text-lg font-semibold"
+                    placeholder="Card title"
+                  />
+                  <Textarea
+                    autoFocus={focusField === "body"}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder="Add a description..."
+                    rows={6}
+                    className="min-h-[150px]"
+                  />
+                </>
               ) : (
-                <h2
-                  className="text-lg font-semibold cursor-pointer"
-                  onClick={() => enterEditing("title")}
-                >
-                  {title}
-                </h2>
-              )}
-              {isEditing ? (
-                <Textarea
-                  autoFocus={focusField === "body"}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder="Add a description..."
-                  rows={6}
-                  className="min-h-[150px]"
-                />
-              ) : body ? (
-                <div
-                  className="prose prose-sm dark:prose-invert max-w-none cursor-pointer min-h-[150px]"
-                  onClick={() => enterEditing("body")}
-                >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {body}
-                  </ReactMarkdown>
-                </div>
-              ) : (
-                <p
-                  className="text-sm text-muted-foreground cursor-pointer min-h-[150px] hover:text-foreground"
-                  onClick={() => enterEditing("body")}
-                >
-                  Click to add a description...
-                </p>
+                <>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold">{title}</h2>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => enterEditing("title")}
+                    >
+                      <Pencil className="h-3.5 w-3.5 mr-0.5" />
+                      Edit
+                    </Button>
+                  </div>
+                  <div className="min-h-[150px]">
+                    {body ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {body}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No description.
+                      </p>
+                    )}
+                  </div>
+                </>
               )}
 
               {/* Comments section */}
@@ -990,24 +1005,30 @@ export function KanbanCardDialog({
                 onToggle={toggleAssignee}
               />
 
-              <div className="text-xs text-muted-foreground space-y-1.5">
-                {card.createdByName && (
-                  <p>
-                    <span className="font-medium">Created by:</span>{" "}
-                    {card.createdByName}
-                  </p>
-                )}
-                {card.lastEditedByName && (
-                  <p>
-                    <span className="font-medium">Last edited by:</span>{" "}
-                    {card.lastEditedByName}
-                  </p>
-                )}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Created
+                </p>
+                <div className="text-xs text-muted-foreground">
+                  {format(new Date(card.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                  {card.createdByName && <> by {card.createdByName}</>}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Updated
+                </p>
+                <div className="text-xs text-muted-foreground">
+                  {format(new Date(card.updatedAt), "MMM d, yyyy 'at' h:mm a")}
+                  {card.lastEditedByName && (
+                    <> by {card.lastEditedByName}</>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         )}
-        <DialogFooter className="shrink-0">
+        <DialogFooter className="shrink-0 flex-row justify-end">
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="secondary">

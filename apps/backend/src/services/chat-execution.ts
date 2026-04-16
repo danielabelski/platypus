@@ -1,5 +1,8 @@
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import {
+  createOpenRouter,
+  type OpenRouterProvider,
+} from "@openrouter/ai-sdk-provider";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { createAnthropic, type AnthropicProvider } from "@ai-sdk/anthropic";
 import {
@@ -287,6 +290,8 @@ export const createSearchTools = (
     ).tools.webSearch_20250305({
       maxUses: 5,
     });
+  } else if (provider.providerType === "OpenRouter") {
+    tools.web_search = (aiProvider as OpenRouterProvider).tools.webSearch({});
   }
 
   return tools;

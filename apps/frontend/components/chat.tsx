@@ -245,7 +245,7 @@ export const Chat = ({
   // Create getRequestBody function that depends on extracted values
   const getRequestBody = useCallback(() => {
     const baseBody = agentId
-      ? { agentId }
+      ? { agentId, search }
       : {
           providerId,
           modelId,

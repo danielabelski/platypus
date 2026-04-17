@@ -14,8 +14,6 @@
 Platypus is an open-source, full-stack application designed to help you build AI agents. Built with a focus on extensibility and modern web standards, Platypus allows you to create agents that can reason, use tools, and interact with the world.
 
 ![](assets/00_screenshot.png)
-![](assets/01_screenshot.png)
-![](assets/02_screenshot.png)
 
 ## ✨ Key Features
 
@@ -32,6 +30,8 @@ Platypus is an open-source, full-stack application designed to help you build AI
 - **⚡ Modern Tech Stack:** Built on the bleeding edge with **Next.js**, **Hono.js**, **Drizzle ORM**, and **Tailwind CSS**.
 - **🌐 Provider Agnostic:** Powered by the Vercel AI SDK, supporting OpenAI, Anthropic, Google, Amazon Bedrock, and OpenRouter.
 - **⚖️ MIT Licensed:** Open source and free to use.
+
+![](assets/01_screenshot.png)
 
 ## 🏗️ Architecture
 

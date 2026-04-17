@@ -4,6 +4,8 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { Maximize2, Minimize2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Textarea } from "./ui/textarea";
 import { FieldError, FieldLabel } from "./ui/field";
 import { Button } from "./ui/button";
@@ -29,15 +31,24 @@ function ExpandableTextarea({
   ...props
 }: ExpandableTextareaProps) {
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState<"write" | "preview">(
+    "write",
+  );
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const currentLength = typeof value === "string" ? value.length : 0;
 
-  const toggleExpand = () => setIsExpanded(!isExpanded);
+  const toggleExpand = () => {
+    if (isExpanded) {
+      setActiveTab("write");
+    }
+    setIsExpanded(!isExpanded);
+  };
 
   React.useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isExpanded) {
         setIsExpanded(false);
+        setActiveTab("write");
       }
     };
     window.addEventListener("keydown", handleEsc);
@@ -152,8 +163,36 @@ function ExpandableTextarea({
                   className="relative w-full max-w-5xl h-full max-h-[80vh] bg-background rounded-lg border shadow-2xl flex flex-col p-4"
                 >
                   <div className="flex justify-between items-center mb-2">
-                    <div className="text-sm font-medium text-muted-foreground">
-                      {label || "Full Screen Editor"}
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm font-medium text-muted-foreground">
+                        {label || "Full Screen Editor"}
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-2 py-0.5 text-xs font-medium rounded cursor-pointer",
+                            activeTab === "write"
+                              ? "bg-muted text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                          onClick={() => setActiveTab("write")}
+                        >
+                          Write
+                        </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-2 py-0.5 text-xs font-medium rounded cursor-pointer",
+                            activeTab === "preview"
+                              ? "bg-muted text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                          onClick={() => setActiveTab("preview")}
+                        >
+                          Preview
+                        </button>
+                      </div>
                     </div>
                     <Button
                       type="button"
@@ -167,7 +206,23 @@ function ExpandableTextarea({
                     </Button>
                   </div>
                   <div className="flex-1 overflow-hidden">
-                    {renderTextarea(true)}
+                    {activeTab === "write" ? (
+                      renderTextarea(true)
+                    ) : (
+                      <div className="h-full overflow-y-auto rounded-md border bg-transparent px-3 py-2">
+                        {typeof value === "string" && value.length > 0 ? (
+                          <div className="prose prose-sm dark:prose-invert max-w-none [overflow-wrap:anywhere]">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {value}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Nothing to preview
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {counterElement}
                 </motion.div>

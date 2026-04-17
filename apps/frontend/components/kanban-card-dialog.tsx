@@ -397,7 +397,7 @@ export function KanbanCardDialog({
             </TabsList>
             <TabsContent
               value="details"
-              className="flex-1 overflow-y-auto space-y-4 mt-0 pt-4"
+              className="flex-1 overflow-y-auto space-y-4 mt-0 pt-4 min-w-0"
             >
               <div
                 className="space-y-4"
@@ -428,7 +428,9 @@ export function KanbanCardDialog({
                 ) : (
                   <>
                     <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold">{title}</h2>
+                      <h2 className="text-lg font-semibold [overflow-wrap:anywhere]">
+                        {title}
+                      </h2>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -440,7 +442,7 @@ export function KanbanCardDialog({
                     </div>
                     <div className="min-h-[150px]">
                       {body ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <div className="prose prose-sm dark:prose-invert max-w-none [overflow-wrap:anywhere]">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {body}
                           </ReactMarkdown>
@@ -455,7 +457,7 @@ export function KanbanCardDialog({
                 )}
               </div>
 
-              <div className="border-t pt-4 space-y-4">
+              <div className="border-t pt-4 space-y-4 min-w-0">
                 {columns.length > 1 && selectedColumnId && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2">
@@ -585,7 +587,10 @@ export function KanbanCardDialog({
                     Created
                   </p>
                   <p className="text-xs text-muted-foreground/70">
-                    {format(new Date(card.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                    {format(
+                      new Date(card.createdAt),
+                      "MMM d, yyyy 'at' h:mm a",
+                    )}
                     {card.createdByName && <> by {card.createdByName}</>}
                   </p>
                 </div>
@@ -594,17 +599,18 @@ export function KanbanCardDialog({
                     Updated
                   </p>
                   <p className="text-xs text-muted-foreground/70">
-                    {format(new Date(card.updatedAt), "MMM d, yyyy 'at' h:mm a")}
-                    {card.lastEditedByName && (
-                      <> by {card.lastEditedByName}</>
+                    {format(
+                      new Date(card.updatedAt),
+                      "MMM d, yyyy 'at' h:mm a",
                     )}
+                    {card.lastEditedByName && <> by {card.lastEditedByName}</>}
                   </p>
                 </div>
               </div>
             </TabsContent>
             <TabsContent
               value="comments"
-              className="flex-1 overflow-y-auto mt-0 pt-4"
+              className="flex-1 overflow-y-auto mt-0 pt-4 min-w-0"
             >
               <div>
                 <p className="text-sm font-medium mb-3">Comments</p>
@@ -652,7 +658,7 @@ export function KanbanCardDialog({
                           </div>
                         ) : (
                           <>
-                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <div className="prose prose-sm dark:prose-invert max-w-none [overflow-wrap:anywhere]">
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {comment.body}
                               </ReactMarkdown>
@@ -746,7 +752,9 @@ export function KanbanCardDialog({
               ) : (
                 <>
                   <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">{title}</h2>
+                    <h2 className="text-lg font-semibold [overflow-wrap:anywhere]">
+                      {title}
+                    </h2>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -758,7 +766,7 @@ export function KanbanCardDialog({
                   </div>
                   <div className="min-h-[150px]">
                     {body ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <div className="prose prose-sm dark:prose-invert max-w-none [overflow-wrap:anywhere]">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {body}
                         </ReactMarkdown>
@@ -819,7 +827,7 @@ export function KanbanCardDialog({
                           </div>
                         ) : (
                           <>
-                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <div className="prose prose-sm dark:prose-invert max-w-none [overflow-wrap:anywhere]">
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {comment.body}
                               </ReactMarkdown>
@@ -1020,9 +1028,7 @@ export function KanbanCardDialog({
                 </p>
                 <div className="text-xs text-muted-foreground">
                   {format(new Date(card.updatedAt), "MMM d, yyyy 'at' h:mm a")}
-                  {card.lastEditedByName && (
-                    <> by {card.lastEditedByName}</>
-                  )}
+                  {card.lastEditedByName && <> by {card.lastEditedByName}</>}
                 </div>
               </div>
             </div>

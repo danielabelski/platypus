@@ -664,6 +664,217 @@ export function createKanbanTools(
     },
   });
 
+  const bulkEditCards = tool({
+    description:
+      "Update identical property values across multiple cards in a single operation. Only provided fields are applied — omitted fields are left unchanged. labelIds replaces existing labels; addLabelIds/removeLabelIds add or remove labels and are mutually exclusive with labelIds. When columnId is provided, cards are appended to the end of that column in the order they appear in cardIds. Returns per-card results with a summary.",
+    inputSchema: z
+      .object({
+        cardIds: z
+          .array(z.string())
+          .min(1)
+          .max(30)
+          .describe("Card IDs to update (max 30)"),
+        label: z
+          .string()
+          .describe(
+            "Short description of the operation (for display purposes)",
+          ),
+        columnId: z
+          .string()
+          .optional()
+          .describe("Move all cards to this column"),
+        labelIds: z
+          .array(z.string())
+          .optional()
+          .describe("Set label IDs on all cards, replacing existing labels"),
+        addLabelIds: z
+          .array(z.string())
+          .optional()
+          .describe("Add label IDs to all cards, preserving existing labels"),
+        removeLabelIds: z
+          .array(z.string())
+          .optional()
+          .describe("Remove label IDs from all cards"),
+        assignees: z
+          .array(
+            z.object({
+              type: z.enum(["user", "agent"]),
+              id: z.string(),
+            }),
+          )
+          .max(1)
+          .optional()
+          .describe(
+            "Set assignee on all cards — array with at most one {type, id} object, or empty to unassign",
+          ),
+        priority: z
+          .enum(["none", "low", "medium", "high", "urgent"])
+          .optional()
+          .describe("Set priority on all cards"),
+        dueDate: z
+          .string()
+          .nullable()
+          .optional()
+          .describe(
+            "Set or clear due date on all cards (ISO 8601 string or null)",
+          ),
+      })
+      .refine(
+        (data) =>
+          !(
+            data.labelIds !== undefined &&
+            (data.addLabelIds !== undefined ||
+              data.removeLabelIds !== undefined)
+          ),
+        {
+          message:
+            "labelIds is mutually exclusive with addLabelIds and removeLabelIds",
+        },
+      ),
+    execute: async ({
+      cardIds,
+      columnId,
+      labelIds,
+      addLabelIds,
+      removeLabelIds,
+      assignees,
+      priority,
+      dueDate,
+    }) => {
+      if (columnId && !(await verifyColumn(columnId))) {
+        return { error: "Column not found" };
+      }
+
+      // Verify all cards (best-effort — collect per-card results)
+      const failedResults: { cardId: string; success: false; error: string }[] =
+        [];
+      const validCardIds: string[] = [];
+      for (const cardId of cardIds) {
+        if (await verifyCard(cardId)) {
+          validCardIds.push(cardId);
+        } else {
+          failedResults.push({
+            cardId,
+            success: false,
+            error: "Card not found",
+          });
+        }
+      }
+
+      if (validCardIds.length === 0) {
+        return {
+          results: failedResults,
+          summary: {
+            total: cardIds.length,
+            succeeded: 0,
+            failed: failedResults.length,
+          },
+        };
+      }
+
+      // Fetch current labels when additive/subtractive ops are requested
+      let currentLabelsMap: Map<string, string[]> | undefined;
+      if (addLabelIds !== undefined || removeLabelIds !== undefined) {
+        const currentCards = await db
+          .select({
+            id: kanbanCardTable.id,
+            labelIds: kanbanCardTable.labelIds,
+          })
+          .from(kanbanCardTable)
+          .where(inArray(kanbanCardTable.id, validCardIds));
+        currentLabelsMap = new Map(currentCards.map((c) => [c.id, c.labelIds]));
+      }
+
+      // Determine base position for column moves
+      let basePosition = 0;
+      if (columnId) {
+        const maxResult = await db
+          .select({ maxPos: max(kanbanCardTable.position) })
+          .from(kanbanCardTable)
+          .where(eq(kanbanCardTable.columnId, columnId));
+        basePosition = maxResult[0]?.maxPos ?? 0;
+      }
+
+      // Apply all updates in a single transaction
+      await db.transaction(async (tx) => {
+        for (let i = 0; i < validCardIds.length; i++) {
+          const cardId = validCardIds[i];
+          const updateData: Record<string, unknown> = {
+            lastEditedByAgentId: agentId,
+            updatedAt: new Date(),
+          };
+
+          if (columnId !== undefined) {
+            updateData.columnId = columnId;
+            updateData.position = basePosition + (i + 1) * 1.0;
+          }
+
+          if (labelIds !== undefined) {
+            updateData.labelIds = labelIds;
+          } else if (currentLabelsMap) {
+            const current = currentLabelsMap.get(cardId) ?? [];
+            let next = [...current];
+            if (addLabelIds) {
+              next = [...new Set([...next, ...addLabelIds])];
+            }
+            if (removeLabelIds) {
+              next = next.filter((id) => !removeLabelIds.includes(id));
+            }
+            updateData.labelIds = next;
+          }
+
+          if (assignees !== undefined) updateData.assignees = assignees;
+          if (priority !== undefined) updateData.priority = priority;
+          if (dueDate !== undefined)
+            updateData.dueDate = dueDate ? new Date(dueDate) : null;
+
+          await tx
+            .update(kanbanCardTable)
+            .set(updateData)
+            .where(eq(kanbanCardTable.id, cardId));
+        }
+      });
+
+      // Dispatch events for updated cards
+      for (const cardId of validCardIds) {
+        const boardId = await getBoardIdForCard(cardId);
+        const updated = await db
+          .select()
+          .from(kanbanCardTable)
+          .where(eq(kanbanCardTable.id, cardId))
+          .limit(1);
+        dispatchEvent(workspaceId, "card.updated", {
+          ...updated[0],
+          boardId,
+        });
+      }
+
+      const succeededResults = validCardIds.map((cardId) => ({
+        cardId,
+        success: true as const,
+      }));
+
+      // Return results in input order
+      const resultMap = new Map<
+        string,
+        { cardId: string; success: boolean; error?: string }
+      >([
+        ...succeededResults.map((r) => [r.cardId, r] as const),
+        ...failedResults.map((r) => [r.cardId, r] as const),
+      ]);
+      const results = cardIds.map((id) => resultMap.get(id)!);
+
+      return {
+        results,
+        summary: {
+          total: cardIds.length,
+          succeeded: validCardIds.length,
+          failed: failedResults.length,
+        },
+      };
+    },
+  });
+
   return {
     listBoards,
     getBoardState,
@@ -671,6 +882,7 @@ export function createKanbanTools(
     upsertCard,
     moveCard,
     deleteCard,
+    bulkEditCards,
     listComments,
     upsertComment,
     deleteComment,

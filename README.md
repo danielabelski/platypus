@@ -125,9 +125,6 @@ The fastest way to get Platypus running is using Docker Compose.
 5.  **Sign in:**
     Navigate to `http://localhost:3001` and sign in with the default credentials configured in your `.env` file (`ADMIN_EMAIL` and `ADMIN_PASSWORD`).
 
-> [!CAUTION]
-> Change the default password after your first login!
-
 ## 📦 Storage
 
 Platypus stores file attachments (images, documents, etc.) separately from chat messages to keep the database efficient. When users attach files to messages, the binary data is extracted and stored in a pluggable storage backend, with only a reference stored in the database.

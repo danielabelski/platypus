@@ -260,16 +260,28 @@ chat.post(
     // 3. Initialize Model
     const [aiProvider, model] = createModel(provider, resolvedModelId);
 
-    // 4. Load Tools (Static & MCP)
+    // 4. Load tools, skills, sub-agents, and user context in parallel
     const frontendUrl = process.env.FRONTEND_URL;
-    const { tools, mcpClients } = await loadTools(
-      agent,
-      workspaceId,
-      orgId,
-      frontendUrl,
-    );
+    const user = c.get("user")!;
 
-    // 4b. MCP client lifecycle management - close on abort to prevent leaks
+    const [
+      { tools, mcpClients },
+      skills,
+      { subAgents, subAgentTools, subAgentMcpClients },
+      { userGlobalContext, userWorkspaceContext },
+      memoriesFormatted,
+    ] = await Promise.all([
+      loadTools(agent, workspaceId, orgId, frontendUrl),
+      loadSkills(agent, workspaceId),
+      loadSubAgents(agent, orgId, workspaceId, frontendUrl),
+      fetchUserContexts(user.id, workspaceId),
+      fetchFormattedMemories(user.id, workspaceId),
+    ]);
+
+    // Merge sub-agent MCP clients into the parent list for unified cleanup
+    mcpClients.push(...subAgentMcpClients);
+
+    // MCP client lifecycle management - close on finish or abort to prevent leaks
     let mcpClientsClosed = false;
     const closeMcpClients = async () => {
       if (mcpClientsClosed) return;
@@ -294,32 +306,10 @@ chat.post(
       Object.assign(tools, createSearchTools(provider, aiProvider));
     }
 
-    // 6. Fetch Skills
-    const skills = await loadSkills(agent, workspaceId);
-
-    // 7. Fetch sub-agent details and create delegate tools (only for parent agents)
-    const { subAgents, subAgentTools } = await loadSubAgents(
-      agent,
-      orgId,
-      workspaceId,
-      frontendUrl,
-    );
+    // Merge sub-agent delegate tools into the parent tool set
     Object.assign(tools, subAgentTools);
 
-    // 8. Fetch User Contexts (global and workspace-specific)
-    const user = c.get("user")!;
-    const { userGlobalContext, userWorkspaceContext } = await fetchUserContexts(
-      user.id,
-      workspaceId,
-    );
-
-    // 9. Fetch memories for the user (user-level + workspace-level)
-    const memoriesFormatted = await fetchFormattedMemories(
-      user.id,
-      workspaceId,
-    );
-
-    // 10. Prepare Generation Config (Merge Agent & Request params)
+    // 5. Prepare Generation Config (Merge Agent & Request params)
     const config = await resolveGenerationConfig(
       data,
       workspaceId,
@@ -333,10 +323,10 @@ chat.post(
       memoriesFormatted,
     );
 
-    // 11. Inject loadSkill tool if skills exist
+    // 6. Inject loadSkill tool if skills exist
     prepareAgentTools(tools, skills, workspaceId);
 
-    // 13. Stream Response
+    // 7. Stream Response
     const { systemPrompt, ...restConfig } = config;
 
     logger.debug({ systemPrompt }, "System prompt for chat");

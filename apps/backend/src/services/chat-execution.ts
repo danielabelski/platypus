@@ -23,8 +23,7 @@ import { createLoadSkillTool } from "../tools/skill.ts";
 import { createSubAgentTools } from "../tools/sub-agent.ts";
 import { renderSystemPrompt } from "../system-prompt.ts";
 import {
-  retrieveUserLevelMemories,
-  retrieveWorkspaceLevelMemories,
+  retrieveMemories,
   formatMemoriesForSystemPrompt,
 } from "./memory-retrieval.ts";
 import type { Provider, Skill } from "@platypus/schemas";
@@ -386,9 +385,10 @@ export const loadSubAgents = async (
 ): Promise<{
   subAgents: Array<{ id: string; name: string; description?: string | null }>;
   subAgentTools: Record<string, Tool>;
+  subAgentMcpClients: any[];
 }> => {
   if (!agent?.subAgentIds || agent.subAgentIds.length === 0) {
-    return { subAgents: [], subAgentTools: {} };
+    return { subAgents: [], subAgentTools: {}, subAgentMcpClients: [] };
   }
 
   // Fetch full sub-agent configs including provider/model/tool info
@@ -402,6 +402,9 @@ export const loadSubAgents = async (
     name: sa.name,
     description: sa.description,
   }));
+
+  // Collect MCP clients created for sub-agents so they can be closed on completion
+  const subAgentMcpClients: any[] = [];
 
   // Create sub-agent tools with their own models and tools
   const subAgentTools = await createSubAgentTools(
@@ -433,17 +436,18 @@ export const loadSubAgents = async (
       // Load tools for the sub-agent, passing the full record so dynamic
       // tool sets (e.g. kanban) can resolve the correct agent ID.
       const subAgentRecord = subAgentRecords.find((sa) => sa.id === subAgentId);
-      const { tools: subTools } = await loadTools(
+      const { tools: subTools, mcpClients } = await loadTools(
         subAgentRecord ?? ({ id: subAgentId, toolSetIds } as any),
         workspaceId,
         orgId,
         frontendUrl,
       );
+      subAgentMcpClients.push(...mcpClients);
       return subTools;
     },
   );
 
-  return { subAgents, subAgentTools };
+  return { subAgents, subAgentTools, subAgentMcpClients };
 };
 
 /**
@@ -484,11 +488,7 @@ export const fetchFormattedMemories = async (
   userId: string,
   workspaceId: string,
 ): Promise<string | undefined> => {
-  const [userLevelMemories, workspaceLevelMemories] = await Promise.all([
-    retrieveUserLevelMemories(userId),
-    retrieveWorkspaceLevelMemories(userId, workspaceId),
-  ]);
-  const memories = [...userLevelMemories, ...workspaceLevelMemories];
+  const memories = await retrieveMemories(userId, workspaceId);
   return formatMemoriesForSystemPrompt(memories);
 };
 

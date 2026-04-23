@@ -155,45 +155,35 @@ export const executeTrigger = async (
   // 4. Create model
   const [aiProvider, model] = createModel(provider as Provider, agent.modelId);
 
-  // 5. Load tools
+  // 5. Load tools, skills, sub-agents, and user context in parallel
   const orgId = workspace.organizationId;
   const frontendUrl = process.env.FRONTEND_URL;
-  const { tools, mcpClients } = await loadTools(
-    agent,
-    workspaceId,
-    orgId,
-    frontendUrl,
-  );
+  const user = { id: workspace.ownerId, name: "Trigger User" };
+
+  const [
+    { tools, mcpClients },
+    skills,
+    { subAgents, subAgentTools, subAgentMcpClients },
+    { userGlobalContext, userWorkspaceContext },
+    memoriesFormatted,
+  ] = await Promise.all([
+    loadTools(agent, workspaceId, orgId, frontendUrl),
+    loadSkills(agent, workspaceId),
+    loadSubAgents(agent, orgId, workspaceId, frontendUrl),
+    fetchUserContexts(workspace.ownerId, workspaceId),
+    fetchFormattedMemories(workspace.ownerId, workspaceId),
+  ]);
+
+  // Merge sub-agent MCP clients into the parent list for unified cleanup
+  mcpClients.push(...subAgentMcpClients);
 
   // 5b. Configure Search (if enabled)
   if (trigger.search) {
     Object.assign(tools, createSearchTools(provider as Provider, aiProvider));
   }
 
-  // 5c. Load sub-agents
-  const { subAgents, subAgentTools } = await loadSubAgents(
-    agent,
-    orgId,
-    workspaceId,
-    frontendUrl,
-  );
+  // Merge sub-agent delegate tools into the parent tool set
   Object.assign(tools, subAgentTools);
-
-  // 6. Load skills
-  const skills = await loadSkills(agent, workspaceId);
-
-  // 7. Fetch user contexts (workspace owner is the "user" for triggered runs)
-  const user = { id: workspace.ownerId, name: "Trigger User" };
-  const { userGlobalContext, userWorkspaceContext } = await fetchUserContexts(
-    workspace.ownerId,
-    workspaceId,
-  );
-
-  // 8. Fetch memories
-  const memoriesFormatted = await fetchFormattedMemories(
-    workspace.ownerId,
-    workspaceId,
-  );
 
   // 9. Resolve generation config
   const config = await resolveGenerationConfig(

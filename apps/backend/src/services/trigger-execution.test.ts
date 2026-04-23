@@ -147,6 +147,7 @@ function setupDefaultMocks() {
   mockLoadSubAgents.mockResolvedValue({
     subAgents: [],
     subAgentTools: {},
+    subAgentMcpClients: [],
   });
   mockLoadSkills.mockResolvedValue([]);
   mockFetchUserContexts.mockResolvedValue({

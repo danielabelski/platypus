@@ -7,6 +7,7 @@ import { Plus, Settings, FolderClosed } from "lucide-react";
 import useSWR from "swr";
 import { fetcher, joinUrl } from "@/lib/utils";
 import { useBackendUrl } from "@/app/client-context";
+import { useAuth } from "@/components/auth-provider";
 import {
   Empty,
   EmptyContent,
@@ -25,22 +26,25 @@ export default function OrgPage({
 }) {
   const { orgId } = use(params);
   const backendUrl = useBackendUrl();
+  const { user } = useAuth();
 
-  // Fetch workspaces for this org
-  const { data: workspacesData, isLoading: isWorkspacesLoading } = useSWR<{
+  const { data: workspacesData } = useSWR<{
     results: Workspace[];
   }>(
-    backendUrl
+    backendUrl && user
       ? joinUrl(backendUrl, `/organizations/${orgId}/workspaces`)
       : null,
     fetcher,
   );
 
+  const isReady = !!workspacesData;
   const workspaces = workspacesData?.results || [];
 
   return (
     <div className="space-y-6">
-      {workspaces.length > 0 ? (
+      {!isReady ? (
+        <WorkspaceList orgId={orgId} />
+      ) : workspaces.length > 0 ? (
         <div className="space-y-4">
           <WorkspaceList orgId={orgId} />
           <div className="flex items-center gap-2">
@@ -56,7 +60,7 @@ export default function OrgPage({
             </Button>
           </div>
         </div>
-      ) : !isWorkspacesLoading ? (
+      ) : (
         <Empty className="border-2 border-dashed">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -83,7 +87,7 @@ export default function OrgPage({
             </div>
           </EmptyContent>
         </Empty>
-      ) : null}
+      )}
     </div>
   );
 }

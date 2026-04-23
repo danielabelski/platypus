@@ -14,6 +14,7 @@ import { cn, fetcher, joinUrl } from "../lib/utils";
 import { ChevronRight, FolderClosed } from "lucide-react";
 import Link from "next/link";
 import { useBackendUrl } from "@/app/client-context";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const WorkspaceList = ({
   className,
@@ -32,7 +33,27 @@ const WorkspaceList = ({
     fetcher,
   );
 
-  if (isLoading || error) return null; // FIXME
+  if (error) return null;
+
+  if (isLoading || !data) {
+    return (
+      <ItemGroup className={cn("mb-4", className)}>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Item key={i} variant="outline" className="mb-2">
+            <ItemContent>
+              <ItemTitle>
+                <Skeleton className="size-4 shrink-0 rounded" />
+                <Skeleton className="h-4 w-40 rounded" />
+              </ItemTitle>
+            </ItemContent>
+            <ItemActions>
+              <Skeleton className="size-4 rounded" />
+            </ItemActions>
+          </Item>
+        ))}
+      </ItemGroup>
+    );
+  }
 
   return (
     <ItemGroup className={cn("mb-4", className)}>

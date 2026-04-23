@@ -369,7 +369,7 @@ export function AppSidebar() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link className="cursor-pointer" href="/">
+                      <Link className="cursor-pointer" href={`/${orgId}`}>
                         <ArrowLeftRight /> Switch Org
                       </Link>
                     </DropdownMenuItem>

@@ -14,6 +14,7 @@ import useSWR from "swr";
 import { fetcher, joinUrl } from "@/lib/utils";
 import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Organization } from "@platypus/schemas";
 
 interface OrgListSidebarProps {
@@ -24,10 +25,12 @@ export function OrgListSidebar({ currentOrgId }: OrgListSidebarProps) {
   const { user } = useAuth();
   const backendUrl = useBackendUrl();
 
-  const { data, isLoading } = useSWR<{ results: Organization[] }>(
+  const { data } = useSWR<{ results: Organization[] }>(
     backendUrl && user ? joinUrl(backendUrl, "/organizations") : null,
     fetcher,
   );
+
+  const isReady = !!data;
 
   const organizations = (data?.results || []).sort((a, b) =>
     a.name.localeCompare(b.name),
@@ -38,44 +41,49 @@ export function OrgListSidebar({ currentOrgId }: OrgListSidebarProps) {
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            {isLoading ? (
-              <div className="px-4 py-2 text-sm text-muted-foreground animate-pulse">
-                Loading organizations...
-              </div>
-            ) : (
-              organizations.map((org) => (
-                <SidebarMenuItem key={org.id}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={currentOrgId === org.id}
-                    className="cursor-pointer"
-                  >
-                    <Link href={`/${org.id}`}>
-                      <Building className="size-4" />
-                      <span>{org.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))
-            )}
+            {!isReady
+              ? Array.from({ length: 3 }).map((_, i) => (
+                  <SidebarMenuItem key={i}>
+                    <div className="flex h-8 items-center gap-2 rounded-md px-2">
+                      <Skeleton className="size-4 shrink-0" />
+                      <Skeleton className="h-4 flex-1" />
+                    </div>
+                  </SidebarMenuItem>
+                ))
+              : organizations.map((org) => (
+                  <SidebarMenuItem key={org.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={currentOrgId === org.id}
+                      className="cursor-pointer"
+                    >
+                      <Link href={`/${org.id}`}>
+                        <Building className="size-4" />
+                        <span>{org.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
 
-      <SidebarGroup>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild>
-                <Link href="/create">
-                  <Plus className="size-4" />
-                  <span>Add Organization</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
+      {isReady && (
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link href="/create">
+                    <Plus className="size-4" />
+                    <span>Add Organization</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
     </SidebarContent>
   );
 }

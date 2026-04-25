@@ -125,6 +125,33 @@ The fastest way to get Platypus running is using Docker Compose.
 5.  **Sign in:**
     Navigate to `http://localhost:3001` and sign in with the default credentials configured in your `.env` file (`ADMIN_EMAIL` and `ADMIN_PASSWORD`).
 
+## 📱 Accessing from Mobile or Other Devices on Your Network
+
+By default the dev setup is configured for `localhost`-only access. To access Platypus from a phone or another device on your local network, a few extra steps are needed due to how browser cookies work — session cookies set on one host (e.g. `192.168.1.10`) are not sent for a different host (e.g. `localhost`), so you must use the same host for both the frontend and backend consistently.
+
+1. **Find your machine's local IP address** (e.g. `192.168.1.10`).
+
+2. **Update `apps/frontend/.env`:**
+
+   ```env
+   # URL used by the browser to reach the backend — must be your LAN IP
+   BACKEND_URL=http://192.168.1.10:4001
+
+   # URL used by the Next.js server to reach the backend internally (optional but recommended)
+   INTERNAL_BACKEND_URL=http://localhost:4001
+
+   # Allow the Next.js dev server to accept requests from your LAN IP
+   ALLOWED_DEV_ORIGINS=192.168.1.10
+   ```
+
+3. **Update `apps/backend/.env`** to allow requests from both origins:
+
+   ```env
+   ALLOWED_ORIGINS=http://localhost:3001,http://192.168.1.10:3001
+   ```
+
+4. **Access the app via your LAN IP on all devices** — including your desktop browser. Because session cookies are scoped to the host they were set on, you must use `http://192.168.1.10:3001` consistently. Mixing `localhost` and the IP address on the same browser will cause sign-in to silently fail.
+
 ## 📦 Storage
 
 Platypus stores file attachments (images, documents, etc.) separately from chat messages to keep the database efficient. When users attach files to messages, the binary data is extracted and stored in a pluggable storage backend, with only a reference stored in the database.

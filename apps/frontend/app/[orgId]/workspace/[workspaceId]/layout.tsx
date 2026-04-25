@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { joinUrl } from "@/lib/utils";
 import { UserMenu } from "@/components/user-menu";
 import { ProtectedRoute } from "@/components/protected-route";
+import { WorkspaceScrollContainer } from "@/components/workspace-scroll-container";
 import type { Workspace } from "@platypus/schemas";
 
 async function fetchWorkspace(
@@ -88,9 +89,7 @@ export default async function WorkspaceLayout({
             <UserMenu />
           </div>
         </header>
-        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
-          {children}
-        </div>
+        <WorkspaceScrollContainer>{children}</WorkspaceScrollContainer>
         <CommandMenu orgId={orgId} workspaceId={workspaceId} />
       </SidebarInset>
     </ProtectedRoute>

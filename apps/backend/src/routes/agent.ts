@@ -16,6 +16,7 @@ import { validateSubAgentAssignment } from "../services/sub-agent-validation.ts"
 import { getStorage } from "../storage/index.ts";
 import sharp from "sharp";
 import { avatarKeyToUrl } from "../utils/avatar-url.ts";
+import { getOrigin } from "../utils/get-origin.ts";
 
 const ALLOWED_AVATAR_TYPES = [
   "image/jpeg",
@@ -72,9 +73,7 @@ agent.post(
       }
     }
 
-    const baseUrl =
-      process.env.BETTER_AUTH_URL ||
-      `http://localhost:${process.env.PORT || 4000}`;
+    const baseUrl = getOrigin(c);
     const record = await db
       .insert(agentTable)
       .values({
@@ -94,9 +93,7 @@ agent.get(
   requireWorkspaceAccess,
   async (c) => {
     const workspaceId = c.req.param("workspaceId")!;
-    const baseUrl =
-      process.env.BETTER_AUTH_URL ||
-      `http://localhost:${process.env.PORT || 4000}`;
+    const baseUrl = getOrigin(c);
     const results = await db
       .select()
       .from(agentTable)
@@ -116,9 +113,7 @@ agent.get(
   async (c) => {
     const agentId = c.req.param("agentId");
     const workspaceId = c.req.param("workspaceId")!;
-    const baseUrl =
-      process.env.BETTER_AUTH_URL ||
-      `http://localhost:${process.env.PORT || 4000}`;
+    const baseUrl = getOrigin(c);
     const record = await db
       .select()
       .from(agentTable)
@@ -171,9 +166,7 @@ agent.put(
       }
     }
 
-    const baseUrl =
-      process.env.BETTER_AUTH_URL ||
-      `http://localhost:${process.env.PORT || 4000}`;
+    const baseUrl = getOrigin(c);
     const record = await db
       .update(agentTable)
       .set({
@@ -201,9 +194,7 @@ agent.post(
     const agentId = c.req.param("agentId");
     const workspaceId = c.req.param("workspaceId")!;
     const orgId = c.req.param("orgId")!;
-    const baseUrl =
-      process.env.BETTER_AUTH_URL ||
-      `http://localhost:${process.env.PORT || 4000}`;
+    const baseUrl = getOrigin(c);
 
     const body = await c.req.parseBody();
     const file = body["file"];
@@ -296,9 +287,7 @@ agent.delete(
   async (c) => {
     const agentId = c.req.param("agentId");
     const workspaceId = c.req.param("workspaceId")!;
-    const baseUrl =
-      process.env.BETTER_AUTH_URL ||
-      `http://localhost:${process.env.PORT || 4000}`;
+    const baseUrl = getOrigin(c);
 
     const existing = await db
       .select({ avatarKey: agentTable.avatarKey })

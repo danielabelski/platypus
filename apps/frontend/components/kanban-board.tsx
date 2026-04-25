@@ -22,6 +22,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { motion } from "motion/react";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
@@ -723,7 +724,13 @@ export function KanbanBoard({
   }
 
   return (
-    <div className="flex flex-col h-full min-w-0 overflow-hidden">
+    <PullToRefresh
+      onRefresh={async () => {
+        await mutate();
+      }}
+      disabled={activeId !== null}
+      className="flex flex-col h-full min-w-0 overflow-hidden"
+    >
       <div className="flex items-center justify-between px-4 py-2 border-b shrink-0">
         <div className="flex items-center gap-4 min-w-0">
           <DropdownMenu>
@@ -1038,6 +1045,6 @@ export function KanbanBoard({
         workspaceId={workspaceId}
         boardId={boardId}
       />
-    </div>
+    </PullToRefresh>
   );
 }

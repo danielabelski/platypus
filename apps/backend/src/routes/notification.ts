@@ -15,6 +15,7 @@ import {
 import type { Variables } from "../server.ts";
 import { dispatchEvent } from "../services/event-dispatch.ts";
 import { avatarKeyToUrl } from "../utils/avatar-url.ts";
+import { getOrigin } from "../utils/get-origin.ts";
 
 const notification = new Hono<{ Variables: Variables }>();
 
@@ -32,9 +33,7 @@ notification.get(
       100,
     );
     const offset = Math.max(parseInt(c.req.query("offset") || "0", 10) || 0, 0);
-    const baseUrl =
-      process.env.BETTER_AUTH_URL ||
-      `http://localhost:${process.env.PORT || 4000}`;
+    const baseUrl = getOrigin(c);
 
     const results = await db
       .select({

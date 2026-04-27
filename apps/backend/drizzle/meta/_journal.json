@@ -190,6 +190,13 @@
       "when": 1776488150142,
       "tag": "0026_soft_centennial",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1777276653846,
+      "tag": "0027_loose_wallop",
+      "breakpoints": true
     }
   ]
 }

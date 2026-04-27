@@ -8,7 +8,7 @@ import {
   user,
 } from "./src/db/schema.ts";
 import { nanoid } from "nanoid";
-import { count, eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { auth } from "./src/auth.ts";
 import { logger } from "./src/logger.ts";
 import { startMemoryScheduler } from "./src/jobs/memory-scheduler.ts";
@@ -20,6 +20,9 @@ const main = async () => {
   logger.info(`Serving on port: ${PORT}`);
 
   await exponentialBackoff(async () => {
+    // Enable pgvector extension for embedding storage (needed before drizzle-kit push in dev)
+    await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector`);
+
     const [orgCount] = await db.select({ value: count() }).from(organization);
 
     if (orgCount.value === 0) {

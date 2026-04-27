@@ -23,8 +23,8 @@ import { createLoadSkillTool } from "../tools/skill.ts";
 import { createSubAgentTools } from "../tools/sub-agent.ts";
 import { renderSystemPrompt } from "../system-prompt.ts";
 import {
-  retrieveMemories,
-  formatMemoriesForSystemPrompt,
+  retrieveRecentSummaries,
+  formatSummariesForSystemPrompt,
 } from "./memory-retrieval.ts";
 import type { Provider, Skill } from "@platypus/schemas";
 import type { Tool } from "ai";
@@ -208,6 +208,7 @@ export const loadTools = async (
   workspaceId: string,
   orgId: string,
   frontendUrl: string | undefined,
+  userId?: string,
 ): Promise<{ tools: Record<string, Tool>; mcpClients: any[] }> => {
   const tools: Record<string, Tool> = {};
   const mcpClients: any[] = [];
@@ -226,6 +227,7 @@ export const loadTools = async (
               agentId: agent.id,
               orgId,
               frontendUrl,
+              userId: userId || "",
             })
           : toolSet.tools;
       Object.assign(tools, resolvedTools);
@@ -311,6 +313,7 @@ export const resolveGenerationConfig = async (
   userWorkspaceContext?: string,
   subAgents?: Array<{ id: string; name: string; description?: string | null }>,
   memoriesFormatted?: string,
+  hasMemoryTools?: boolean,
 ): Promise<GenerationConfig> => {
   const config: GenerationConfig = {};
   const source = agent || data;
@@ -344,6 +347,7 @@ export const resolveGenerationConfig = async (
       description: sa.description || undefined,
     })),
     memoriesFormatted,
+    hasMemoryTools,
   });
 
   config.systemPrompt = systemPrompt;
@@ -482,14 +486,15 @@ export const fetchUserContexts = async (
 };
 
 /**
- * Fetches and formats memories for the user.
+ * Fetches and formats recent daily summaries for the user.
  */
 export const fetchFormattedMemories = async (
   userId: string,
   workspaceId: string,
 ): Promise<string | undefined> => {
-  const memories = await retrieveMemories(userId, workspaceId);
-  return formatMemoriesForSystemPrompt(memories);
+  const summaries = await retrieveRecentSummaries(userId, workspaceId);
+  const formatted = formatSummariesForSystemPrompt(summaries);
+  return formatted || undefined;
 };
 
 /**

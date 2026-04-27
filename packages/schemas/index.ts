@@ -27,6 +27,8 @@ export const workspaceSchema = z.object({
   context: z.string().max(1000).nullable().optional(),
   taskModelProviderId: z.string().nullable().optional(),
   memoryExtractionProviderId: z.string().nullable().optional(),
+  memoryEmbeddingProviderId: z.string().nullable().optional(),
+  maxDailySummaries: z.number().int().min(7).max(365).optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -44,6 +46,8 @@ export const workspaceUpdateSchema = workspaceSchema.pick({
   context: true,
   taskModelProviderId: true,
   memoryExtractionProviderId: true,
+  memoryEmbeddingProviderId: true,
+  maxDailySummaries: true,
 });
 
 // Chat
@@ -389,6 +393,14 @@ const providerBaseSchema = z.object({
   modelIds: z.array(z.string()).min(1),
   taskModelId: z.string(),
   memoryExtractionModelId: z.string(),
+  embeddingModelId: z.string().nullable().optional(),
+  embeddingDimensions: z
+    .number()
+    .int()
+    .min(256)
+    .max(4096)
+    .nullable()
+    .optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -436,6 +448,8 @@ export const providerCreateSchema = providerBaseSchema.pick({
   modelIds: true,
   taskModelId: true,
   memoryExtractionModelId: true,
+  embeddingModelId: true,
+  embeddingDimensions: true,
 });
 
 // Invitation
@@ -485,7 +499,11 @@ export const providerUpdateSchema = providerBaseSchema.pick({
   modelIds: true,
   taskModelId: true,
   memoryExtractionModelId: true,
+  embeddingModelId: true,
+  embeddingDimensions: true,
 });
+
+export type ProviderUpdateData = z.infer<typeof providerUpdateSchema>;
 
 // Organization Member
 
@@ -555,87 +573,19 @@ export const contextUpdateSchema = contextSchema.pick({
   content: true,
 });
 
-// Memory
+// Memory Daily Summary
 
-export const memoryEntityTypeSchema = z.enum([
-  "preference",
-  "fact",
-  "goal",
-  "constraint",
-  "style",
-  "person",
-]);
-
-export type MemoryEntityType = z.infer<typeof memoryEntityTypeSchema>;
-
-export const memoryScopeSchema = z.enum(["user", "workspace"]);
-
-export type MemoryScope = z.infer<typeof memoryScopeSchema>;
-
-export const memorySchema = z.object({
+export const memoryDailySummarySchema = z.object({
   id: z.string(),
   userId: z.string(),
-  workspaceId: z.string().nullable().optional(),
-  chatId: z.string().nullable().optional(),
-  entityType: memoryEntityTypeSchema,
-  entityName: z.string(),
-  observation: z.string(),
+  workspaceId: z.string(),
+  summaryDate: z.string(), // YYYY-MM-DD
+  summary: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
-export type Memory = z.infer<typeof memorySchema>;
-
-export const memoryCreateSchema = z.object({
-  userId: z.string(),
-  workspaceId: z.string().nullable().optional(),
-  chatId: z.string().optional(),
-  entityType: memoryEntityTypeSchema,
-  entityName: z.string(),
-  observation: z.string(),
-});
-
-export type MemoryCreateData = z.infer<typeof memoryCreateSchema>;
-
-export const memoryUpdateSchema = z.object({
-  entityType: memoryEntityTypeSchema.optional(),
-  entityName: z.string().optional(),
-  observation: z.string().optional(),
-});
-
-export type MemoryUpdateData = z.infer<typeof memoryUpdateSchema>;
-
-// Memory Extraction (for LLM structured output)
-
-export const memoryExtractionNewMemorySchema = z.object({
-  entityType: memoryEntityTypeSchema,
-  entityName: z.string(),
-  observation: z.string(),
-  scope: memoryScopeSchema,
-});
-
-export type MemoryExtractionNewMemory = z.infer<
-  typeof memoryExtractionNewMemorySchema
->;
-
-export const memoryExtractionUpdateSchema = z.object({
-  id: z.string(),
-  observation: z.string(),
-});
-
-export type MemoryExtractionUpdate = z.infer<
-  typeof memoryExtractionUpdateSchema
->;
-
-export const memoryExtractionOutputSchema = z.object({
-  new: z.array(memoryExtractionNewMemorySchema),
-  updates: z.array(memoryExtractionUpdateSchema),
-  deletes: z.array(z.string()), // Memory IDs to delete
-});
-
-export type MemoryExtractionOutput = z.infer<
-  typeof memoryExtractionOutputSchema
->;
+export type MemoryDailySummary = z.infer<typeof memoryDailySummarySchema>;
 
 // Webhook Event (defined here so trigger schemas can reference it)
 

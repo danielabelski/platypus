@@ -123,6 +123,29 @@ workspace.put(
       }
     }
 
+    // Validate memoryEmbeddingProviderId if set
+    if (data.memoryEmbeddingProviderId) {
+      const provider = await db
+        .select()
+        .from(providerTable)
+        .where(eq(providerTable.id, data.memoryEmbeddingProviderId))
+        .limit(1);
+
+      if (provider.length === 0) {
+        return c.json({ message: "Memory embedding provider not found" }, 404);
+      }
+
+      if (!provider[0].embeddingModelId) {
+        return c.json(
+          {
+            message:
+              "Selected provider does not have an embedding model configured",
+          },
+          400,
+        );
+      }
+    }
+
     const record = await db
       .update(workspaceTable)
       .set({

@@ -1,8 +1,27 @@
-import { pgTable, index, unique, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, index, unique, customType } from "drizzle-orm/pg-core";
 
 // Import and re-export auth schema
 export * from "./auth-schema.ts";
 import { user } from "./auth-schema.ts";
+
+// Custom vector type without fixed dimensions — allows variable-dimension vectors per workspace
+const unboundVector = customType<{
+  data: number[];
+  driverParam: string;
+}>({
+  dataType() {
+    return "vector";
+  },
+  toDriver(value: number[]): string {
+    return JSON.stringify(value);
+  },
+  fromDriver(value: unknown): number[] {
+    if (typeof value === "string") {
+      return JSON.parse(value);
+    }
+    return value as number[];
+  },
+});
 
 export const organization = pgTable("organization", (t) => ({
   id: t.text("id").primaryKey(),
@@ -35,6 +54,8 @@ export const provider = pgTable(
     modelIds: t.jsonb().$type<string[]>().notNull(),
     taskModelId: t.text("task_model_id").notNull(),
     memoryExtractionModelId: t.text("memory_extraction_model_id").notNull(),
+    embeddingModelId: t.text("embedding_model_id"),
+    embeddingDimensions: t.integer("embedding_dimensions"),
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
     updatedAt: t.timestamp("updated_at").notNull().defaultNow(),
   }),
@@ -74,6 +95,12 @@ export const workspace = pgTable(
     memoryExtractionProviderId: t
       .text("memory_extraction_provider_id")
       .references(() => provider.id, { onDelete: "set null" }),
+
+    // Memory embedding configuration
+    memoryEmbeddingProviderId: t
+      .text("memory_embedding_provider_id")
+      .references(() => provider.id, { onDelete: "set null" }),
+    maxDailySummaries: t.integer("max_daily_summaries").default(90),
 
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
     updatedAt: t.timestamp("updated_at").notNull().defaultNow(),
@@ -305,44 +332,36 @@ export const context = pgTable(
   ],
 );
 
-export const memory = pgTable(
-  "memory",
+export const memoryDailySummary = pgTable(
+  "memory_daily_summary",
   (t) => ({
     id: t.text("id").primaryKey(),
-
-    // IMPORTANT: All memories are user-owned (userId always set)
-    // Scope determines where memory is relevant:
-    //   - User-level: workspaceId = NULL (applies across all workspaces for this user)
-    //   - Workspace-level: workspaceId set (applies only in this workspace for this user)
-    // Since workspaces are single-user owned and only the owner can chat,
-    // workspace-level memories always belong to the workspace owner.
     userId: t
       .text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     workspaceId: t
       .text("workspace_id")
+      .notNull()
       .references(() => workspace.id, { onDelete: "cascade" }),
-
-    // Source tracking
-    chatId: t
-      .text("chat_id")
-      .references(() => chat.id, { onDelete: "set null" }),
-
-    // Entity-based memory structure
-    entityType: t.text("entity_type").notNull(), // "preference" | "fact" | "goal" | "constraint" | "style" | "person"
-    entityName: t.text("entity_name").notNull(), // e.g., "communication style", "project framework"
-    observation: t.text("observation").notNull(), // The actual memory content
-
+    summaryDate: t.date("summary_date").notNull(),
+    summary: t.text("summary").notNull(),
+    embedding: unboundVector("embedding"), // No fixed dimensions — configurable per workspace
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
     updatedAt: t.timestamp("updated_at").notNull().defaultNow(),
   }),
   (t) => [
-    // Primary index for scope-based retrieval (most common query pattern)
-    index("idx_memory_user_workspace").on(t.userId, t.workspaceId),
-
-    // Source tracking
-    index("idx_memory_chat_id").on(t.chatId),
+    unique("unique_daily_summary_user_workspace_date").on(
+      t.userId,
+      t.workspaceId,
+      t.summaryDate,
+    ),
+    index("idx_daily_summary_user_workspace").on(t.userId, t.workspaceId),
+    index("idx_daily_summary_date").on(t.summaryDate),
+    // No HNSW index — dimensions vary per workspace. Exact nearest-neighbor
+    // search via <=> is fast enough for the scale of daily summaries (hundreds
+    // to low thousands of rows per workspace). Queries are already scoped by
+    // userId + workspaceId which narrows the search set significantly.
   ],
 );
 

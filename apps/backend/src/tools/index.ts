@@ -11,12 +11,14 @@ import { createKanbanTools } from "./kanban.ts";
 import { createTriggerTools } from "./trigger.ts";
 import { createAgentManagementTools } from "./agent-management.ts";
 import { createNotificationTools } from "./notification.ts";
+import { createMemoryTools } from "./memory.ts";
 
 export type ToolSetContext = {
   workspaceId: string;
   agentId: string;
   orgId: string;
   frontendUrl: string | undefined;
+  userId: string;
 };
 
 type ToolSet = {
@@ -54,6 +56,9 @@ export const getToolSet = (toolSetId: string): ToolSet => {
 };
 
 export const getToolSets = (): typeof TOOL_SETS_REGISTRY => TOOL_SETS_REGISTRY;
+
+// Tool set ID constants for referencing registered tool sets by name
+export const MEMORY_TOOLSET_ID = "memory";
 
 // REGISTER TOOL SETS HERE!
 registerToolSet("math-conversions", {
@@ -119,4 +124,11 @@ registerToolSet("notifications", {
   description: "Post notifications visible to users in this workspace",
   tools: ({ workspaceId, agentId }) =>
     createNotificationTools(workspaceId, agentId),
+});
+
+registerToolSet("memory", {
+  name: "Memory",
+  category: "Memory",
+  description: "Search and retrieve memories from past conversations",
+  tools: ({ workspaceId, userId }) => createMemoryTools(workspaceId, userId),
 });

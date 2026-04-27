@@ -51,9 +51,10 @@ import { useAuth } from "@/components/auth-provider";
 
 type ProviderFormData = Omit<
   Provider,
-  "id" | "createdAt" | "updatedAt" | "workspaceId"
+  "id" | "createdAt" | "updatedAt" | "workspaceId" | "embeddingDimensions"
 > & {
   extraBody?: Record<string, unknown>;
+  embeddingDimensions: string;
 };
 
 const ProviderForm = ({
@@ -95,8 +96,18 @@ const ProviderForm = ({
     modelIds: [],
     taskModelId: "",
     memoryExtractionModelId: "",
+    embeddingModelId: "",
+    embeddingDimensions: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEmbeddingChangeDialogOpen, setIsEmbeddingChangeDialogOpen] =
+    useState(false);
+  const [savedEmbeddingModelId, setSavedEmbeddingModelId] = useState<
+    string | null
+  >(null);
+  const [savedEmbeddingDimensions, setSavedEmbeddingDimensions] = useState<
+    string | null
+  >(null);
   const [headersError, setHeadersError] = useState<string | null>(null);
   const [headersString, setHeadersString] = useState("{}");
   const [extraBodyError, setExtraBodyError] = useState<string | null>(null);
@@ -142,10 +153,16 @@ const ProviderForm = ({
         modelIds: provider.modelIds || [],
         taskModelId: provider.taskModelId,
         memoryExtractionModelId: provider.memoryExtractionModelId,
+        embeddingModelId: provider.embeddingModelId || "",
+        embeddingDimensions: provider.embeddingDimensions?.toString() || "",
       });
       setHeadersString(JSON.stringify(provider.headers || {}, null, 2));
       setExtraBodyString(JSON.stringify(provider.extraBody || {}, null, 2));
       setModelIdsString((provider.modelIds || []).join("\n"));
+      setSavedEmbeddingModelId(provider.embeddingModelId || null);
+      setSavedEmbeddingDimensions(
+        provider.embeddingDimensions?.toString() || null,
+      );
       hasInitialized.current = true;
     }
   }, [provider]);
@@ -224,7 +241,19 @@ const ProviderForm = ({
     });
   };
 
-  const handleSubmit = async () => {
+  const hasEmbeddingConfigChanged = (): boolean => {
+    if (!providerId) return false; // New provider, no existing embeddings
+    const currentModelId = formData.embeddingModelId || null;
+    const currentDimensions = formData.embeddingDimensions || null;
+    // Only matters if there was a previously saved embedding model
+    if (!savedEmbeddingModelId && !currentModelId) return false;
+    return (
+      currentModelId !== savedEmbeddingModelId ||
+      currentDimensions !== savedEmbeddingDimensions
+    );
+  };
+
+  const doSubmit = async () => {
     setIsSubmitting(true);
     setValidationErrors({});
     setError(null);
@@ -244,6 +273,10 @@ const ProviderForm = ({
         modelIds: formData.modelIds,
         taskModelId: formData.taskModelId,
         memoryExtractionModelId: formData.memoryExtractionModelId,
+        embeddingModelId: formData.embeddingModelId || null,
+        embeddingDimensions: formData.embeddingDimensions
+          ? parseInt(formData.embeddingDimensions)
+          : null,
       };
 
       const url = providerId
@@ -297,6 +330,14 @@ const ProviderForm = ({
       toast.error("Failed to save provider");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (hasEmbeddingConfigChanged()) {
+      setIsEmbeddingChangeDialogOpen(true);
+    } else {
+      doSubmit();
     }
   };
 
@@ -531,6 +572,50 @@ const ProviderForm = ({
               </FieldError>
             )}
           </Field>
+
+          <Field data-invalid={!!validationErrors.embeddingModelId}>
+            <FieldLabel htmlFor="embeddingModelId">
+              Embedding Model ID
+            </FieldLabel>
+            <Input
+              id="embeddingModelId"
+              placeholder="text-embedding-3-small"
+              value={formData.embeddingModelId || ""}
+              onChange={handleChange}
+              disabled={isSubmitting || isReadOnly}
+              aria-invalid={!!validationErrors.embeddingModelId}
+            />
+            <FieldDescription>
+              Model to use for generating memory embeddings. Required for
+              semantic memory search.
+            </FieldDescription>
+            {validationErrors.embeddingModelId && (
+              <FieldError>{validationErrors.embeddingModelId}</FieldError>
+            )}
+          </Field>
+
+          {formData.embeddingModelId && (
+            <Field data-invalid={!!validationErrors.embeddingDimensions}>
+              <FieldLabel htmlFor="embeddingDimensions">
+                Embedding Dimensions
+              </FieldLabel>
+              <Input
+                id="embeddingDimensions"
+                type="number"
+                placeholder="1536"
+                value={formData.embeddingDimensions}
+                onChange={handleChange}
+                disabled={isSubmitting || isReadOnly}
+                aria-invalid={!!validationErrors.embeddingDimensions}
+              />
+              <FieldDescription>
+                Number of dimensions for the embedding model output (256-4096).
+              </FieldDescription>
+              {validationErrors.embeddingDimensions && (
+                <FieldError>{validationErrors.embeddingDimensions}</FieldError>
+              )}
+            </Field>
+          )}
         </FieldGroup>
 
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -676,6 +761,18 @@ const ProviderForm = ({
         confirmVariant="destructive"
         onConfirm={handleDelete}
         loading={isDeleting}
+      />
+
+      <ConfirmDialog
+        open={isEmbeddingChangeDialogOpen}
+        onOpenChange={setIsEmbeddingChangeDialogOpen}
+        title="Embedding Configuration Changed"
+        description="Changing the embedding model or dimensions will invalidate existing memory embeddings for any workspaces using this provider. Semantic memory search will be unavailable until summaries are re-embedded."
+        confirmLabel="Continue"
+        onConfirm={() => {
+          setIsEmbeddingChangeDialogOpen(false);
+          doSubmit();
+        }}
       />
     </div>
   );

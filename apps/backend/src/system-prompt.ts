@@ -13,6 +13,7 @@ interface SystemPromptTemplateData {
   userWorkspaceContext?: string;
   subAgents?: Array<{ id: string; name: string; description?: string }>;
   memoriesFormatted?: string;
+  hasMemoryTools?: boolean;
 }
 
 /**
@@ -116,7 +117,16 @@ export function renderSystemPrompt(data: SystemPromptTemplateData): string {
 
   // Add memories if available
   if (data.memoriesFormatted) {
-    parts.push(data.memoriesFormatted);
+    let memoriesSection = `<memories>\n${data.memoriesFormatted}\n</memories>`;
+    if (data.hasMemoryTools) {
+      memoriesSection +=
+        "\n\nYou also have access to memorySearch and memoryGet tools to look up older or more specific memories beyond what is shown above.";
+    }
+    parts.push(memoriesSection);
+  } else if (data.hasMemoryTools) {
+    parts.push(
+      "You have access to memorySearch and memoryGet tools to look up memories from past conversations.",
+    );
   }
 
   if (data.skills && data.skills.length > 0) {

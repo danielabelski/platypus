@@ -32,6 +32,7 @@ import {
   type ChatContext,
   type GenerationConfig,
 } from "../services/chat-execution.ts";
+import { MEMORY_TOOLSET_ID } from "../tools/index.ts";
 import {
   chatGenerateMetadataSchema,
   chatSubmitSchema,
@@ -281,7 +282,7 @@ chat.post(
       { userGlobalContext, userWorkspaceContext },
       memoriesFormatted,
     ] = await Promise.all([
-      loadTools(agent, workspaceId, orgId, frontendUrl),
+      loadTools(agent, workspaceId, orgId, frontendUrl, user.id),
       loadSkills(agent, workspaceId),
       loadSubAgents(agent, orgId, workspaceId, frontendUrl),
       fetchUserContexts(user.id, workspaceId),
@@ -311,7 +312,7 @@ chat.post(
       });
     }
 
-    // 5. Configure Search (if enabled)
+    // 6. Configure Search (if enabled)
     if (data.search) {
       Object.assign(tools, createSearchTools(provider, aiProvider));
     }
@@ -319,7 +320,9 @@ chat.post(
     // Merge sub-agent delegate tools into the parent tool set
     Object.assign(tools, subAgentTools);
 
-    // 5. Prepare Generation Config (Merge Agent & Request params)
+    // 7. Prepare Generation Config (Merge Agent & Request params)
+    const hasMemoryTools =
+      agent?.toolSetIds?.includes(MEMORY_TOOLSET_ID) ?? false;
     const config = await resolveGenerationConfig(
       data,
       workspaceId,
@@ -331,12 +334,13 @@ chat.post(
       userWorkspaceContext,
       subAgents,
       memoriesFormatted,
+      hasMemoryTools,
     );
 
-    // 6. Inject loadSkill tool if skills exist
+    // 8. Inject loadSkill tool if skills exist
     prepareAgentTools(tools, skills, workspaceId);
 
-    // 7. Stream Response
+    // 9. Stream Response
     const { systemPrompt, ...restConfig } = config;
 
     logger.debug({ systemPrompt }, "System prompt for chat");

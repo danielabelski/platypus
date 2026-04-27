@@ -15,6 +15,9 @@ async function runMigrations() {
   logger.info("Running migrations...");
 
   try {
+    // Enable pgvector extension before running schema migrations
+    await db.execute("CREATE EXTENSION IF NOT EXISTS vector");
+
     await migrate(db, { migrationsFolder: "./apps/backend/drizzle" });
     logger.info("Migrations completed successfully!");
   } catch (error) {

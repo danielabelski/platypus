@@ -76,6 +76,8 @@ const WorkspaceForm = ({
     context: "",
     taskModelProviderId: null as string | null,
     memoryExtractionProviderId: null as string | null,
+    memoryEmbeddingProviderId: null as string | null,
+    maxDailySummaries: 90,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
@@ -93,7 +95,9 @@ const WorkspaceForm = ({
         context: workspace.context || "",
         taskModelProviderId: workspace.taskModelProviderId || null,
         memoryExtractionProviderId:
-          (workspace as any).memoryExtractionProviderId || null,
+          workspace.memoryExtractionProviderId || null,
+        memoryEmbeddingProviderId: workspace.memoryEmbeddingProviderId || null,
+        maxDailySummaries: workspace.maxDailySummaries ?? 90,
       });
     }
   }, [workspace]);
@@ -139,6 +143,8 @@ const WorkspaceForm = ({
             context: formData.context || null,
             taskModelProviderId: formData.taskModelProviderId,
             memoryExtractionProviderId: formData.memoryExtractionProviderId,
+            memoryEmbeddingProviderId: formData.memoryEmbeddingProviderId,
+            maxDailySummaries: formData.maxDailySummaries,
           }
         : {
             organizationId: orgId,
@@ -330,6 +336,78 @@ const WorkspaceForm = ({
                 <FieldError>
                   {validationErrors.memoryExtractionProviderId}
                 </FieldError>
+              )}
+            </Field>
+          )}
+
+          {workspaceId && (
+            <Field data-invalid={!!validationErrors.memoryEmbeddingProviderId}>
+              <FieldLabel htmlFor="memoryEmbeddingProviderId">
+                Memory Embedding Provider
+              </FieldLabel>
+              <Select
+                value={formData.memoryEmbeddingProviderId || "none"}
+                onValueChange={(value) => {
+                  setFormData((prevData) => ({
+                    ...prevData,
+                    memoryEmbeddingProviderId: value === "none" ? null : value,
+                  }));
+                }}
+                disabled={isSubmitting}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Disabled</SelectItem>
+                  {providers
+                    .filter((p) => (p as any).embeddingModelId)
+                    .map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <FieldDescription>
+                Provider to use for generating memory embeddings. Required for
+                semantic memory search. Set an embedding model ID on a provider
+                to see it here.
+              </FieldDescription>
+              {validationErrors.memoryEmbeddingProviderId && (
+                <FieldError>
+                  {validationErrors.memoryEmbeddingProviderId}
+                </FieldError>
+              )}
+            </Field>
+          )}
+
+          {workspaceId && (
+            <Field data-invalid={!!validationErrors.maxDailySummaries}>
+              <FieldLabel htmlFor="maxDailySummaries">
+                Memory Summary Retention
+              </FieldLabel>
+              <Input
+                id="maxDailySummaries"
+                type="number"
+                min={7}
+                max={365}
+                value={formData.maxDailySummaries}
+                onChange={(e) => {
+                  setFormData((prevData) => ({
+                    ...prevData,
+                    maxDailySummaries: parseInt(e.target.value) || 90,
+                  }));
+                }}
+                disabled={isSubmitting}
+                aria-invalid={!!validationErrors.maxDailySummaries}
+              />
+              <FieldDescription>
+                Maximum number of daily memory summaries to retain (7-365,
+                default 90 days).
+              </FieldDescription>
+              {validationErrors.maxDailySummaries && (
+                <FieldError>{validationErrors.maxDailySummaries}</FieldError>
               )}
             </Field>
           )}

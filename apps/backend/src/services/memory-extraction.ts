@@ -1,25 +1,21 @@
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import { eq, and, or, isNull, sql, inArray, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "../index.ts";
 import {
-  retrieveUserLevelMemories,
-  retrieveWorkspaceLevelMemories,
-  formatMemoriesForExtractionPrompt,
-} from "./memory-retrieval.ts";
-import {
   chat as chatTable,
-  memory as memoryTable,
+  memoryDailySummary as memoryDailySummaryTable,
   workspace as workspaceTable,
   provider as providerTable,
 } from "../db/schema.ts";
-import { memoryExtractionOutputSchema, type Provider } from "@platypus/schemas";
+import type { Provider } from "@platypus/schemas";
 import { logger } from "../logger.ts";
 import type { PlatypusUIMessage } from "../types.ts";
 import { createModel } from "./chat-execution.ts";
+import { generateEmbedding } from "./embedding.ts";
 
 /**
- * Formats conversation messages for the extraction prompt.
+ * Formats conversation messages for the summary prompt.
  */
 const formatConversation = (messages: PlatypusUIMessage[]): string => {
   return messages
@@ -34,32 +30,33 @@ const formatConversation = (messages: PlatypusUIMessage[]): string => {
 };
 
 /**
- * Builds the extraction prompt for the LLM.
+ * Builds the summary prompt for the LLM.
  */
-const buildExtractionPrompt = (
+const buildSummaryPrompt = (
   conversationText: string,
-  existingMemoriesFormatted: string,
+  existingSummary: string | null,
 ): string => {
-  return `You are a memory extraction assistant. Analyze the conversation and extract persistent facts about the user that should be remembered for future conversations.
+  return `You are a memory consolidation assistant. You maintain a daily summary of what is known about the user from their conversations.
 
-The user's existing memories are provided below in TSV format (tab-separated values). You MUST:
-- NOT re-extract information that already exists in the current memories
-- If a conversation reveals updated information that contradicts an existing memory, include the existing memory's ID in the "updates" array with the corrected observation
-- If the conversation explicitly indicates that an existing memory is wrong or no longer accurate, include its ID in the "deletes" array
-- If the user explicitly asks to forget or remove something, include its ID in the "deletes" array
-- Only return genuinely NEW information not covered by existing memories
+<existing-summary>
+${existingSummary || "No summary yet."}
+</existing-summary>
 
-Existing memories (TSV format):
-${existingMemoriesFormatted}
+<conversation>
+${conversationText}
+</conversation>
 
-Entity types: "preference", "fact", "goal", "constraint", "style", "person"
-
-Scope determination:
-- "user": Personal facts, general preferences, identity (applies across all of this user's workspaces)
-- "workspace": Project-specific context, workspace-specific preferences (applies only in this workspace for this user)
-
-Conversation:
-${conversationText}`;
+<instructions>
+- Produce an updated daily summary incorporating any new information from the conversation
+- Use a compact markdown format with bulleted lists under topic headings
+- Write in third person (about the user)
+- Preserve specific details (names, numbers, preferences) — do not generalize
+- If the conversation contradicts something in the existing summary, update it
+- If the user asks to forget something, remove it from the summary
+- If the conversation reveals nothing worth remembering, return the existing summary unchanged
+- Aim for 100-500 words total
+- Return ONLY the updated summary text, no preamble or explanation
+</instructions>`;
 };
 
 /**
@@ -81,12 +78,20 @@ const updateChatExtractionStatus = async (
 };
 
 /**
- * Processes a single chat for memory extraction.
+ * Gets today's date string in YYYY-MM-DD format.
+ */
+const getTodayDateString = (): string => {
+  return new Date().toISOString().split("T")[0];
+};
+
+/**
+ * Processes a single chat for memory extraction into daily summaries.
  */
 const processChat = async (
   chat: typeof chatTable.$inferSelect,
   workspace: typeof workspaceTable.$inferSelect,
-  provider: typeof providerTable.$inferSelect,
+  extractionProvider: typeof providerTable.$inferSelect,
+  embeddingProvider: typeof providerTable.$inferSelect | null,
 ): Promise<void> => {
   const messages = (chat.messages as PlatypusUIMessage[]) || [];
 
@@ -97,148 +102,145 @@ const processChat = async (
     return;
   }
 
-  // Get the workspace owner (the user who owns the memories)
   const userId = workspace.ownerId;
+  const todayDate = getTodayDateString();
 
-  // Load existing memories (both user-level and workspace-level)
-  const [userLevel, workspaceLevel] = await Promise.all([
-    retrieveUserLevelMemories(userId),
-    retrieveWorkspaceLevelMemories(userId, workspace.id),
-  ]);
-  const existingMemories = [...userLevel, ...workspaceLevel];
+  // Load today's existing summary for this user+workspace
+  const [existingSummaryRow] = await db
+    .select()
+    .from(memoryDailySummaryTable)
+    .where(
+      and(
+        eq(memoryDailySummaryTable.userId, userId),
+        eq(memoryDailySummaryTable.workspaceId, workspace.id),
+        eq(memoryDailySummaryTable.summaryDate, todayDate),
+      ),
+    )
+    .limit(1);
 
-  // Format for the prompt
+  const existingSummary = existingSummaryRow?.summary || null;
+
+  // Format conversation and build prompt
   const conversationText = formatConversation(messages);
-  const existingMemoriesFormatted =
-    formatMemoriesForExtractionPrompt(existingMemories);
-
-  // Build the extraction prompt
-  const extractionPrompt = buildExtractionPrompt(
-    conversationText,
-    existingMemoriesFormatted,
-  );
+  const summaryPrompt = buildSummaryPrompt(conversationText, existingSummary);
 
   logger.debug(
     {
       chatId: chat.id,
       messageCount: messages.length,
-      existingMemoryCount: existingMemories.length,
-      modelId: provider.memoryExtractionModelId,
-      promptLength: extractionPrompt.length,
+      hasExistingSummary: !!existingSummary,
+      modelId: extractionProvider.memoryExtractionModelId,
+      promptLength: summaryPrompt.length,
     },
-    "Running memory extraction",
+    "Running memory summary extraction",
   );
 
   // Create the model
   const [, model] = createModel(
-    provider as Provider,
-    provider.memoryExtractionModelId,
+    extractionProvider as Provider,
+    extractionProvider.memoryExtractionModelId,
   );
 
-  // Call the LLM for extraction
+  // Call the LLM for summary generation
   let result;
   try {
     result = await generateText({
       model,
-      prompt: extractionPrompt,
-      output: Output.object({
-        schema: memoryExtractionOutputSchema,
-      }),
+      prompt: summaryPrompt,
       temperature: 0.3,
     });
   } catch (error: any) {
     logger.error(
-      { error, chatId: chat.id, modelId: provider.memoryExtractionModelId },
-      "Memory extraction LLM call failed",
+      {
+        err: error,
+        chatId: chat.id,
+        modelId: extractionProvider.memoryExtractionModelId,
+      },
+      `Memory summary extraction LLM call failed: ${error.message ?? error}`,
     );
     await updateChatExtractionStatus(chat.id, "failed");
     return;
   }
 
-  const { new: newMemories, updates, deletes } = result.output;
+  const updatedSummary = result.text.trim();
 
-  // Insert new memories
-  if (newMemories.length > 0) {
-    const now = new Date();
-    await db.insert(memoryTable).values(
-      newMemories.map((m) => ({
-        id: nanoid(),
-        userId,
-        workspaceId: m.scope === "workspace" ? workspace.id : null,
-        chatId: chat.id,
-        entityType: m.entityType,
-        entityName: m.entityName,
-        observation: m.observation,
-        createdAt: now,
+  if (!updatedSummary) {
+    logger.warn(`Empty summary returned for chat ${chat.id}, skipping`);
+    await updateChatExtractionStatus(chat.id, "completed");
+    return;
+  }
+
+  // Generate embedding if embedding provider is configured
+  let embedding: number[] | null = null;
+  if (embeddingProvider && embeddingProvider.embeddingModelId) {
+    try {
+      embedding = await generateEmbedding(
+        embeddingProvider as Provider,
+        embeddingProvider.embeddingModelId,
+        updatedSummary,
+      );
+    } catch (error: any) {
+      logger.error(
+        { err: error, chatId: chat.id },
+        `Failed to generate embedding for daily summary: ${error.message ?? error}`,
+      );
+    }
+  }
+
+  // Upsert the daily summary
+  const now = new Date();
+  if (existingSummaryRow) {
+    await db
+      .update(memoryDailySummaryTable)
+      .set({
+        summary: updatedSummary,
+        embedding,
         updatedAt: now,
-      })),
-    );
+      })
+      .where(eq(memoryDailySummaryTable.id, existingSummaryRow.id));
 
     logger.info(
-      `Inserted ${newMemories.length} new memories for chat ${chat.id}`,
+      `Updated daily summary for chat ${chat.id} (date: ${todayDate})`,
+    );
+  } else {
+    await db.insert(memoryDailySummaryTable).values({
+      id: nanoid(),
+      userId,
+      workspaceId: workspace.id,
+      summaryDate: todayDate,
+      summary: updatedSummary,
+      embedding,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    logger.info(
+      `Created daily summary for chat ${chat.id} (date: ${todayDate})`,
     );
   }
 
-  // Update existing memories
-  if (updates.length > 0) {
-    for (const update of updates) {
-      // Verify the memory belongs to this user/workspace before updating
-      const [existingMemory] = await db
-        .select()
-        .from(memoryTable)
-        .where(
-          and(eq(memoryTable.id, update.id), eq(memoryTable.userId, userId)),
-        )
-        .limit(1);
+  // Prune old summaries exceeding maxDailySummaries
+  const maxSummaries = workspace.maxDailySummaries ?? 90;
+  const pruneResult = await db.execute(sql`
+    DELETE FROM memory_daily_summary
+    WHERE id IN (
+      SELECT id FROM memory_daily_summary
+      WHERE user_id = ${userId} AND workspace_id = ${workspace.id}
+      ORDER BY summary_date DESC
+      OFFSET ${maxSummaries}
+    )
+  `);
 
-      if (existingMemory) {
-        await db
-          .update(memoryTable)
-          .set({
-            observation: update.observation,
-            updatedAt: new Date(),
-          })
-          .where(eq(memoryTable.id, update.id));
-
-        logger.info(`Updated memory ${update.id} for chat ${chat.id}`);
-      } else {
-        logger.warn(
-          `Attempted to update memory ${update.id} that doesn't exist or doesn't belong to user ${userId}`,
-        );
-      }
-    }
-  }
-
-  // Delete memories that are no longer relevant
-  if (deletes.length > 0) {
-    for (const deleteId of deletes) {
-      // Verify the memory belongs to this user before deleting
-      const [existingMemory] = await db
-        .select()
-        .from(memoryTable)
-        .where(
-          and(eq(memoryTable.id, deleteId), eq(memoryTable.userId, userId)),
-        )
-        .limit(1);
-
-      if (existingMemory) {
-        await db.delete(memoryTable).where(eq(memoryTable.id, deleteId));
-
-        logger.info(`Deleted memory ${deleteId} for chat ${chat.id}`);
-      } else {
-        logger.warn(
-          `Attempted to delete memory ${deleteId} that doesn't exist or doesn't belong to user ${userId}`,
-        );
-      }
-    }
+  if (pruneResult.rowCount && pruneResult.rowCount > 0) {
+    logger.info(
+      `Pruned ${pruneResult.rowCount} old daily summaries for user ${userId} in workspace ${workspace.id}`,
+    );
   }
 
   // Mark chat as processed
   await updateChatExtractionStatus(chat.id, "completed");
 
-  logger.info(
-    `Memory extraction completed for chat ${chat.id}: ${newMemories.length} new, ${updates.length} updated, ${deletes.length} deleted`,
-  );
+  logger.info(`Memory summary extraction completed for chat ${chat.id}`);
 };
 
 /**
@@ -248,7 +250,8 @@ const findChatsToProcess = async (): Promise<
   Array<{
     chat: typeof chatTable.$inferSelect;
     workspace: typeof workspaceTable.$inferSelect;
-    provider: typeof providerTable.$inferSelect;
+    extractionProvider: typeof providerTable.$inferSelect;
+    embeddingProvider: typeof providerTable.$inferSelect | null;
   }>
 > => {
   // Find workspaces with memory extraction enabled
@@ -265,7 +268,6 @@ const findChatsToProcess = async (): Promise<
   const workspaceIds = workspacesWithExtraction.map((w) => w.id);
 
   // Find chats in those workspaces that need processing
-  // Status is "pending" OR (status is "failed" AND last processed > 1 hour ago) OR never processed
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
   const chatsToProcess = await db
@@ -287,17 +289,24 @@ const findChatsToProcess = async (): Promise<
       ),
     )
     .orderBy(desc(chatTable.updatedAt))
-    .limit(50); // Process up to 50 chats per batch
+    .limit(50);
 
-  // Fetch providers for each workspace
-  const providerIds = workspacesWithExtraction
-    .map((w) => w.memoryExtractionProviderId)
-    .filter(Boolean) as string[];
+  // Collect all provider IDs needed (extraction + embedding)
+  const providerIds = new Set<string>();
+  for (const w of workspacesWithExtraction) {
+    if (w.memoryExtractionProviderId)
+      providerIds.add(w.memoryExtractionProviderId);
+    if (w.memoryEmbeddingProviderId)
+      providerIds.add(w.memoryEmbeddingProviderId);
+  }
 
-  const providers = await db
-    .select()
-    .from(providerTable)
-    .where(inArray(providerTable.id, providerIds));
+  const providers =
+    providerIds.size > 0
+      ? await db
+          .select()
+          .from(providerTable)
+          .where(inArray(providerTable.id, [...providerIds]))
+      : [];
 
   const providerMap = new Map(providers.map((p) => [p.id, p]));
   const workspaceMap = new Map(workspacesWithExtraction.map((w) => [w.id, w]));
@@ -306,17 +315,24 @@ const findChatsToProcess = async (): Promise<
   const result: Array<{
     chat: typeof chatTable.$inferSelect;
     workspace: typeof workspaceTable.$inferSelect;
-    provider: typeof providerTable.$inferSelect;
+    extractionProvider: typeof providerTable.$inferSelect;
+    embeddingProvider: typeof providerTable.$inferSelect | null;
   }> = [];
 
   for (const { chat } of chatsToProcess) {
     const workspace = workspaceMap.get(chat.workspaceId);
     if (!workspace || !workspace.memoryExtractionProviderId) continue;
 
-    const provider = providerMap.get(workspace.memoryExtractionProviderId);
-    if (!provider) continue;
+    const extractionProvider = providerMap.get(
+      workspace.memoryExtractionProviderId,
+    );
+    if (!extractionProvider) continue;
 
-    result.push({ chat, workspace, provider });
+    const embeddingProvider = workspace.memoryEmbeddingProviderId
+      ? (providerMap.get(workspace.memoryEmbeddingProviderId) ?? null)
+      : null;
+
+    result.push({ chat, workspace, extractionProvider, embeddingProvider });
   }
 
   return result;
@@ -340,13 +356,23 @@ export const processMemoryExtractionBatch = async (): Promise<void> => {
     logger.info(`Found ${chatsToProcess.length} chats to process`);
 
     // Process chats sequentially to avoid rate limits and race conditions
-    for (const { chat, workspace, provider } of chatsToProcess) {
+    for (const {
+      chat,
+      workspace,
+      extractionProvider,
+      embeddingProvider,
+    } of chatsToProcess) {
       try {
         // Mark as processing
         await updateChatExtractionStatus(chat.id, "processing");
 
         // Process the chat
-        await processChat(chat, workspace, provider);
+        await processChat(
+          chat,
+          workspace,
+          extractionProvider,
+          embeddingProvider,
+        );
       } catch (error) {
         logger.error(
           { error, chatId: chat.id },

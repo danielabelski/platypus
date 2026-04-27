@@ -5,6 +5,7 @@ import { db } from "../index.ts";
 import { provider as providerTable } from "../db/schema.ts";
 import { providerCreateSchema, providerUpdateSchema } from "@platypus/schemas";
 import { eq, and, or } from "drizzle-orm";
+import { handleEmbeddingConfigChange } from "../services/embedding-invalidation.ts";
 import { dedupeArray } from "../utils.ts";
 import { requireAuth } from "../middleware/authentication.ts";
 import {
@@ -139,6 +140,10 @@ provider.put(
     if (data.modelIds) {
       data.modelIds = dedupeArray(data.modelIds).sort();
     }
+
+    // Detect and handle embedding config changes before the update
+    await handleEmbeddingConfigChange(providerId, data);
+
     try {
       const record = await db
         .update(providerTable)
@@ -153,6 +158,7 @@ provider.put(
           ),
         )
         .returning();
+
       return c.json(record, 200);
     } catch (error: any) {
       const isUniqueViolation =

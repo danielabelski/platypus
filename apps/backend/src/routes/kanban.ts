@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { sValidator } from "@hono/standard-validator";
 import { nanoid } from "nanoid";
-import { and, asc, count, desc, eq, max, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, max, inArray, not } from "drizzle-orm";
 import { db } from "../index.ts";
 import {
   kanbanBoard as kanbanBoardTable,
@@ -522,6 +522,25 @@ kanban.post(
       return c.json({ message: "Board not found" }, 404);
     }
 
+    // Check for duplicate column name within the board
+    const existingColumn = await db
+      .select({ id: kanbanColumnTable.id })
+      .from(kanbanColumnTable)
+      .where(
+        and(
+          eq(kanbanColumnTable.boardId, boardId),
+          eq(kanbanColumnTable.name, data.name),
+        ),
+      )
+      .limit(1);
+
+    if (existingColumn.length > 0) {
+      return c.json(
+        { message: "A column with this name already exists on the board" },
+        409,
+      );
+    }
+
     const maxResult = await db
       .select({ maxPos: max(kanbanColumnTable.position) })
       .from(kanbanColumnTable)
@@ -560,6 +579,26 @@ kanban.put(
     const columnId = c.req.param("columnId");
     const boardId = c.req.param("boardId");
     const data = c.req.valid("json");
+
+    // Check for duplicate column name within the board (excluding this column)
+    const existingColumn = await db
+      .select({ id: kanbanColumnTable.id })
+      .from(kanbanColumnTable)
+      .where(
+        and(
+          eq(kanbanColumnTable.boardId, boardId),
+          eq(kanbanColumnTable.name, data.name),
+          not(eq(kanbanColumnTable.id, columnId)),
+        ),
+      )
+      .limit(1);
+
+    if (existingColumn.length > 0) {
+      return c.json(
+        { message: "A column with this name already exists on the board" },
+        409,
+      );
+    }
 
     const record = await db
       .update(kanbanColumnTable)

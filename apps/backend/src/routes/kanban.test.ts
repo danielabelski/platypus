@@ -267,6 +267,7 @@ describe("Kanban Routes", () => {
 
       const mockBoard = { id: boardId, name: "Board 1", workspaceId };
       mockDb.limit.mockResolvedValueOnce([mockBoard]);
+      mockDb.limit.mockResolvedValueOnce([]); // duplicate check
 
       mockDb.orderBy.mockResolvedValueOnce([{ maxPos: 1.0 }]);
 
@@ -287,6 +288,28 @@ describe("Kanban Routes", () => {
       expect(res.status).toBe(201);
       expect(await res.json()).toEqual(mockColumn);
     });
+
+    it("should return 409 if column name already exists on board", async () => {
+      mockSession();
+      mockDb.limit.mockResolvedValueOnce([{ role: "member" }]); // requireOrgAccess
+      mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]); // requireWorkspaceAccess
+
+      const mockBoard = { id: boardId, name: "Board 1", workspaceId };
+      mockDb.limit.mockResolvedValueOnce([mockBoard]);
+      mockDb.limit.mockResolvedValueOnce([{ id: "existing-col" }]); // duplicate check
+
+      const res = await app.request(`${baseUrl}/${boardId}/columns`, {
+        method: "POST",
+        body: JSON.stringify({ name: "Existing Column" }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.message).toBe(
+        "A column with this name already exists on the board",
+      );
+    });
   });
 
   describe("PUT /:boardId/columns/:columnId", () => {
@@ -294,6 +317,7 @@ describe("Kanban Routes", () => {
       mockSession();
       mockDb.limit.mockResolvedValueOnce([{ role: "member" }]); // requireOrgAccess
       mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]); // requireWorkspaceAccess
+      mockDb.limit.mockResolvedValueOnce([]); // duplicate check
 
       const mockColumn = { id: "col-1", boardId, name: "Updated Column" };
       mockDb.returning.mockResolvedValueOnce([mockColumn]);
@@ -312,6 +336,7 @@ describe("Kanban Routes", () => {
       mockSession();
       mockDb.limit.mockResolvedValueOnce([{ role: "member" }]); // requireOrgAccess
       mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]); // requireWorkspaceAccess
+      mockDb.limit.mockResolvedValueOnce([]); // duplicate check
 
       mockDb.returning.mockResolvedValueOnce([]);
 
@@ -322,6 +347,25 @@ describe("Kanban Routes", () => {
       });
 
       expect(res.status).toBe(404);
+    });
+
+    it("should return 409 if renaming to an existing column name", async () => {
+      mockSession();
+      mockDb.limit.mockResolvedValueOnce([{ role: "member" }]); // requireOrgAccess
+      mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]); // requireWorkspaceAccess
+      mockDb.limit.mockResolvedValueOnce([{ id: "other-col" }]); // duplicate check
+
+      const res = await app.request(`${baseUrl}/${boardId}/columns/col-1`, {
+        method: "PUT",
+        body: JSON.stringify({ name: "Existing Column" }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.message).toBe(
+        "A column with this name already exists on the board",
+      );
     });
   });
 

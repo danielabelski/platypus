@@ -27,6 +27,10 @@ vi.mock("./trigger-execution.ts", () => ({
   updateTriggerAfterRun: vi.fn(),
 }));
 
+vi.mock("./event-trigger-debounce.ts", () => ({
+  debounceTriggerExecution: vi.fn(),
+}));
+
 import { dispatchEvent } from "./event-dispatch.ts";
 import { logger } from "../logger.ts";
 

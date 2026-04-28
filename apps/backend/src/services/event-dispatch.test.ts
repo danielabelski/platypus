@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mockDb, resetMockDb } from "../test-utils.ts";
+import { clearPendingTriggers } from "./event-trigger-debounce.ts";
 
 const { mockDeliverWebhook, mockExecuteTrigger, mockUpdateTriggerAfterRun } =
   vi.hoisted(() => ({
@@ -62,20 +63,33 @@ const makeEventTrigger = (overrides: Record<string, unknown> = {}) => ({
 /**
  * dispatchEvent is fire-and-forget. We flush microtasks to let
  * the internal async IIFE settle before asserting.
+ * Also advances past the 5s debounce window for event triggers.
  */
 async function flushMicrotasks() {
   // Multiple rounds to allow nested void async IIFEs to resolve
   for (let i = 0; i < 10; i++) {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.advanceTimersByTimeAsync(0);
+  }
+  // Advance past the 5s debounce window for event triggers
+  await vi.advanceTimersByTimeAsync(5_000);
+  // Flush again so the debounced callback's async work settles
+  for (let i = 0; i < 10; i++) {
+    await vi.advanceTimersByTimeAsync(0);
   }
 }
 
 describe("event-dispatch", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     resetMockDb();
     vi.clearAllMocks();
     mockExecuteTrigger.mockResolvedValue("chat-1");
     mockUpdateTriggerAfterRun.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    clearPendingTriggers();
+    vi.useRealTimers();
   });
 
   describe("dispatchEvent", () => {

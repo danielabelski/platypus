@@ -7,6 +7,7 @@ import {
 import { deliverWebhook } from "./webhook-delivery.ts";
 import { executeTrigger } from "./trigger-execution.ts";
 import { updateTriggerAfterRun } from "./trigger-execution.ts";
+import { debounceTriggerExecution } from "./event-trigger-debounce.ts";
 import { logger } from "../logger.ts";
 import type { WebhookEvent, EventTriggerConfig } from "@platypus/schemas";
 
@@ -68,25 +69,30 @@ export function dispatchEvent(
           if (eventData.columnId !== triggerConfig.filters.columnId) continue;
         }
 
-        // Fire-and-forget for each matching event trigger
-        void (async () => {
-          try {
-            await executeTrigger(trigger, {
-              eventType: event,
-              eventData: data,
-            });
-            await updateTriggerAfterRun(trigger.id, trigger);
-          } catch (error) {
-            logger.error(
-              {
-                triggerId: trigger.id,
-                event,
-                error: error instanceof Error ? error.message : String(error),
-              },
-              "Event trigger execution failed",
-            );
-          }
-        })();
+        // Debounce per trigger+entity to coalesce rapid events
+        const entityId = (data as Record<string, unknown>)?.id ?? "unknown";
+        const debounceKey = `${trigger.id}:${entityId}`;
+
+        debounceTriggerExecution(
+          debounceKey,
+          trigger,
+          { eventType: event, eventData: data },
+          async (t, ctx) => {
+            try {
+              await executeTrigger(t, ctx);
+              await updateTriggerAfterRun(t.id, t);
+            } catch (error) {
+              logger.error(
+                {
+                  triggerId: t.id,
+                  event,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+                "Event trigger execution failed",
+              );
+            }
+          },
+        );
       }
     } catch (error) {
       logger.error(

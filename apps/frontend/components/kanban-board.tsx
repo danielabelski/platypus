@@ -136,6 +136,12 @@ export function KanbanBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"column" | "card" | null>(null);
   const activeTypeRef = useRef<"column" | "card" | null>(null);
+  // Throttle drag-over updates to once per animation frame.  dnd-kit fires
+  // onDragOver from a useEffect on overId, so a setLocalColumns inside that
+  // handler can shift layout, change overId, re-fire the effect, and loop
+  // (React #185).  Coalescing to one update per frame breaks the loop while
+  // still letting the user see cards animate as they drag.
+  const dragOverFrameRef = useRef<number | null>(null);
   const [selectedCard, setSelectedCard] = useState<KanbanCard | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -265,6 +271,12 @@ export function KanbanBoard({
     const { active, over } = event;
     if (!over || activeTypeRef.current !== "card") return;
 
+    // Skip if we already scheduled an update this frame: a previous
+    // drag-over already set localColumns, and processing another one before
+    // React flushes can re-trigger this handler off the resulting layout
+    // shift.
+    if (dragOverFrameRef.current !== null) return;
+
     const cols = localColumnsRef.current;
     if (!cols) return;
 
@@ -282,6 +294,12 @@ export function KanbanBoard({
 
     if (!activeColumn || !overColumn) return;
 
+    const scheduleNextFrame = () => {
+      dragOverFrameRef.current = requestAnimationFrame(() => {
+        dragOverFrameRef.current = null;
+      });
+    };
+
     // Same column reorder
     if (activeColumn.id === overColumn.id) {
       const activeIndex = activeColumn.cards.findIndex(
@@ -292,6 +310,7 @@ export function KanbanBoard({
       const targetIndex =
         overIndex === -1 ? activeColumn.cards.length - 1 : overIndex;
       if (activeIndex !== targetIndex) {
+        scheduleNextFrame();
         setLocalColumns((prev) => {
           if (!prev) return prev;
           return prev.map((c) =>
@@ -308,6 +327,7 @@ export function KanbanBoard({
     const activeColId = activeColumn.id;
     const overColId = overColumn.id;
     const overCardId = over.id;
+    scheduleNextFrame();
     setLocalColumns((prev) => {
       if (!prev) return prev;
       return prev.map((c) => {
@@ -344,6 +364,10 @@ export function KanbanBoard({
       setActiveId(null);
       setActiveType(null);
       activeTypeRef.current = null;
+      if (dragOverFrameRef.current !== null) {
+        cancelAnimationFrame(dragOverFrameRef.current);
+        dragOverFrameRef.current = null;
+      }
 
       // Read the latest localColumns from the ref to avoid stale closures.
       // React may batch state updates from handleDragOver and handleDragEnd
@@ -387,37 +411,56 @@ export function KanbanBoard({
         return;
       }
 
-      // Card drag end
-      const column = cols.find((col) =>
+      // Card drag end.  The active card stays in its source column during
+      // drag-over (cross-column moves are deferred to here), so we resolve
+      // the target column from the drop target rather than from the array.
+      const sourceColumn = cols.find((col) =>
         col.cards.some((c) => c.id === active.id),
       );
-      if (!column) {
+      if (!sourceColumn) {
         setLocalColumns(null);
         return;
       }
 
-      // Determine afterCardId using the drop target rather than the local
-      // array order.  During cross-column drags the local state may not
-      // reflect the visual order shown by dnd-kit's CSS transforms, so
-      // reading the position from the array can produce the wrong value.
       const overId = String(over.id);
-      const isDropZone = parseDropZoneId(overId) !== null;
-      const otherCards = column.cards.filter((c) => c.id !== active.id);
+      const droppableColumnId = parseDropZoneId(overId);
+      const targetColumn =
+        (droppableColumnId
+          ? cols.find((col) => col.id === droppableColumnId)
+          : null) ??
+        cols.find((col) => col.id === over.id) ??
+        cols.find((col) => col.cards.some((c) => c.id === over.id)) ??
+        sourceColumn;
+
+      const isDropZone = droppableColumnId !== null;
+      const targetCards = targetColumn.cards.filter((c) => c.id !== active.id);
 
       let afterCardId: string | null;
-      if (isDropZone || otherCards.length === 0) {
-        // Dropped on empty area or column has no other cards
+      if (isDropZone || targetCards.length === 0) {
+        // Dropped on the column drop zone or onto an empty column
         afterCardId =
-          otherCards.length > 0 ? otherCards[otherCards.length - 1].id : null;
+          targetCards.length > 0
+            ? targetCards[targetCards.length - 1].id
+            : null;
       } else {
         // Dropped over a specific card – decide whether to go before or
         // after it by comparing the dragged card's current centre-Y with
         // the over card's centre-Y.
-        const overIdx = otherCards.findIndex((c) => c.id === over.id);
+        const overIdx = targetCards.findIndex((c) => c.id === over.id);
         if (overIdx === -1) {
           // over card is the active card itself – fall back to array order
-          const cardIndex = column.cards.findIndex((c) => c.id === active.id);
-          afterCardId = cardIndex > 0 ? column.cards[cardIndex - 1].id : null;
+          if (targetColumn.id === sourceColumn.id) {
+            const cardIndex = sourceColumn.cards.findIndex(
+              (c) => c.id === active.id,
+            );
+            afterCardId =
+              cardIndex > 0 ? sourceColumn.cards[cardIndex - 1].id : null;
+          } else {
+            afterCardId =
+              targetCards.length > 0
+                ? targetCards[targetCards.length - 1].id
+                : null;
+          }
         } else {
           const activeTranslated =
             active.rect.current.translated ?? active.rect.current.initial;
@@ -426,33 +469,39 @@ export function KanbanBoard({
             : 0;
           const overCenterY = over.rect.top + over.rect.height / 2;
           if (activeCenterY > overCenterY) {
-            // Active is below the over card → place after it
-            afterCardId = otherCards[overIdx].id;
+            afterCardId = targetCards[overIdx].id;
           } else {
-            // Active is above the over card → place before it
-            afterCardId = overIdx > 0 ? otherCards[overIdx - 1].id : null;
+            afterCardId = overIdx > 0 ? targetCards[overIdx - 1].id : null;
           }
         }
       }
 
-      // Reorder local state to match the computed position so the UI
-      // doesn't flash the wrong order when dnd-kit removes its transforms.
-      const columnId = column.id;
+      // Optimistic local update so the UI doesn't flash while the request
+      // is in flight.
       setLocalColumns((prev) => {
         if (!prev) return prev;
+        const movedCard = sourceColumn.cards.find((c) => c.id === active.id);
+        if (!movedCard) return prev;
         return prev.map((c) => {
-          if (c.id !== columnId) return c;
-          const cards = [...c.cards];
-          const idx = cards.findIndex((card) => card.id === active.id);
-          if (idx === -1) return c;
-          const [movedCard] = cards.splice(idx, 1);
-          if (afterCardId === null) {
-            cards.unshift(movedCard);
-          } else {
-            const afterIdx = cards.findIndex((card) => card.id === afterCardId);
-            cards.splice(afterIdx + 1, 0, movedCard);
+          if (c.id === sourceColumn.id && sourceColumn.id !== targetColumn.id) {
+            return {
+              ...c,
+              cards: c.cards.filter((card) => card.id !== active.id),
+            };
           }
-          return { ...c, cards };
+          if (c.id === targetColumn.id) {
+            const cards = c.cards.filter((card) => card.id !== active.id);
+            if (afterCardId === null) {
+              cards.unshift(movedCard);
+            } else {
+              const afterIdx = cards.findIndex(
+                (card) => card.id === afterCardId,
+              );
+              cards.splice(afterIdx + 1, 0, movedCard);
+            }
+            return { ...c, cards };
+          }
+          return c;
         });
       });
 
@@ -461,7 +510,7 @@ export function KanbanBoard({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            columnId: column.id,
+            columnId: targetColumn.id,
             afterCardId,
           }),
           credentials: "include",

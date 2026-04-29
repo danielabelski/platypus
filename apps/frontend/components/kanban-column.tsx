@@ -6,7 +6,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core";
+import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { KanbanCard, KanbanColumn, KanbanLabel } from "@platypus/schemas";
 import { KanbanCardComponent } from "@/components/kanban-card";
@@ -222,11 +222,26 @@ const KanbanColumnComponentInner = function KanbanColumnComponent({
     data: { type: "column", column },
   });
 
-  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+  const { setNodeRef: setDroppableRef } = useDroppable({
     id: `column-drop-${column.id}`,
     data: { type: "column", column },
     disabled: isDraggingColumn,
   });
+
+  // Broaden the highlight: useDroppable's isOver only fires when the
+  // over-target is the column drop-zone itself.  When the cursor is over a
+  // card, that card is the over-target, so the column wouldn't highlight.
+  // Read the active over from context instead and treat the column as
+  // "over" if the over-target is the drop-zone, the column's sortable, or
+  // any card that belongs to this column.
+  const { active, over } = useDndContext();
+  const overId = over ? String(over.id) : null;
+  const isOver =
+    !!active &&
+    overId !== null &&
+    (overId === `column-drop-${column.id}` ||
+      overId === column.id ||
+      column.cards.some((c) => c.id === overId));
 
   const style = {
     transform: CSS.Transform.toString(transform),

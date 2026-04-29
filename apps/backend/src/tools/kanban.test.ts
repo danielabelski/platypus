@@ -69,6 +69,7 @@ describe("createKanbanTools", () => {
 
   it("returns the expected tool names", () => {
     expect(Object.keys(tools)).toEqual([
+      "listAgents",
       "listBoards",
       "getBoardState",
       "getCard",

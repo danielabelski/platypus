@@ -13,6 +13,7 @@ import { user } from "../db/auth-schema.ts";
 import { calculateCardPosition } from "../utils/kanban-positioning.ts";
 import { buildResourceUrl } from "../utils/resource-url.ts";
 import { dispatchEvent } from "../services/event-dispatch.ts";
+import { createListAgentsTool } from "./agent-management.ts";
 
 export function createKanbanTools(
   workspaceId: string,
@@ -97,6 +98,8 @@ export function createKanbanTools(
       .limit(1);
     return result[0]?.boardId;
   }
+
+  const listAgents = createListAgentsTool(workspaceId);
 
   const listBoards = tool({
     description: "List all kanban boards in the current workspace.",
@@ -1086,6 +1089,7 @@ export function createKanbanTools(
   });
 
   return {
+    listAgents,
     listBoards,
     getBoardState,
     getCard,

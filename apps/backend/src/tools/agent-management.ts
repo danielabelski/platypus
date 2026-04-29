@@ -16,6 +16,30 @@ import { buildResourceUrl } from "../utils/resource-url.ts";
 
 const skillNameRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/**
+ * Standalone factory for the listAgents tool so it can be shared across
+ * multiple tool sets (e.g. agent-management AND kanban).
+ */
+export function createListAgentsTool(workspaceId: string): Tool {
+  return tool({
+    description: "List all agents in the current workspace.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      const agents = await db
+        .select({
+          id: agentTable.id,
+          name: agentTable.name,
+          description: agentTable.description,
+          modelId: agentTable.modelId,
+          providerId: agentTable.providerId,
+        })
+        .from(agentTable)
+        .where(eq(agentTable.workspaceId, workspaceId));
+      return agents;
+    },
+  });
+}
+
 export function createAgentManagementTools(
   workspaceId: string,
   orgId: string,
@@ -241,23 +265,7 @@ export function createAgentManagementTools(
   // Agent tools
   // ---------------------------------------------------------------------------
 
-  const listAgents = tool({
-    description: "List all agents in the current workspace.",
-    inputSchema: z.object({}),
-    execute: async () => {
-      const agents = await db
-        .select({
-          id: agentTable.id,
-          name: agentTable.name,
-          description: agentTable.description,
-          modelId: agentTable.modelId,
-          providerId: agentTable.providerId,
-        })
-        .from(agentTable)
-        .where(eq(agentTable.workspaceId, workspaceId));
-      return agents;
-    },
-  });
+  const listAgents = createListAgentsTool(workspaceId);
 
   const getAgent = tool({
     description: "Get full agent details by ID (excludes avatar).",

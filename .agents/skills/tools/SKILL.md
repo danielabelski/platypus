@@ -1,11 +1,11 @@
 ---
-name: add-tool
-description: Guide for adding new tools to Platypus - covers backend implementation, frontend integration, and tool registration. Always load this skill if the user mentions adding or updating tools.
+name: tools
+description: Guide for Platypus tools and tool sets - covers creating, updating, sharing, and registering tools, frontend icon mapping, custom UI, and architecture. Always load this skill when the user mentions tools or tool sets.
 ---
 
-# Adding New Tools to Platypus
+# Platypus Tools Guide
 
-This guide explains how to add custom tools that AI agents can use during chat sessions.
+This guide explains how tools and tool sets work in Platypus, and how to add, update, or share tools that AI agents use during chat sessions.
 
 ---
 
@@ -117,7 +117,7 @@ registerToolSet("time", {
 ### Tool Set Guidelines
 
 - **ID**: Use kebab-case (e.g., `math-conversions`, `time`)
-- **Category**: Groups tool sets in UI (e.g., "Math", "Utilities", "Elicitation")
+- **Category**: Groups tool sets in UI (e.g., "Math", "Utilities")
 - **Related tools**: Group related functionality in one tool set
 - **Description**: Optional but helpful for users selecting tools
 
@@ -139,6 +139,8 @@ const toolToToolSet: Record<string, string> = {
   convertCurrency: "currency",
 };
 ```
+
+**Important**: Every tool must have an entry here. If a tool appears in multiple tool sets, map it to the most semantically fitting one — the icon displays correctly regardless of which tool set provided it at runtime.
 
 ### 2. Map tool set ID → icon
 
@@ -210,121 +212,44 @@ Agent: [Uses convertFahrenheitToCelsius tool]
 Result: { "celsius": 24 }
 ```
 
+### 4. Run Tests
+
+Tests are co-located with tool files at `apps/backend/src/tools/*.test.ts`:
+
+```bash
+pnpm --filter backend test
+```
+
 ---
 
 ## Advanced Patterns
 
 ### 1. Dynamic/Workspace-Scoped Tools
 
-For tools that need workspace or agent context, use a factory function and register with `tools` as a function instead of an object:
+For tools that need workspace or agent context, use a factory function and register with `tools` as a function instead of an object.
 
-```typescript
-// apps/backend/src/tools/your-tool.ts
-export function createYourTools(
-  workspaceId: string,
-  agentId: string,
-): Record<string, Tool> {
-  const yourTool = tool({
-    description: "Do something scoped to this workspace",
-    inputSchema: z.object({
-      name: z.string().describe("Name"),
-    }),
-    execute: async ({ name }) => {
-      const result = await db
-        .select()
-        .from(someTable)
-        .where(eq(someTable.workspaceId, workspaceId))
-        .limit(1);
-      return { result };
-    },
-  });
+The `tools` property on `registerToolSet` accepts either a static object or a function receiving a `ToolSetContext`. Use the function form when tools need runtime context. Check `apps/backend/src/tools/index.ts` for the `ToolSetContext` type definition — it includes fields like `workspaceId`, `agentId`, `orgId`, `frontendUrl`, and `userId`.
 
-  return { yourTool };
-}
-```
+**Pattern:** Create a `createYourTools(...)` factory function in your tool file that accepts the context fields it needs and returns `Record<string, Tool>`. Then in `index.ts`, register with `tools: (ctx) => createYourTools(ctx.workspaceId, ...)`. See existing dynamic tool sets (kanban, agent-management, triggers, etc.) for real examples.
 
-```typescript
-// apps/backend/src/tools/index.ts
-registerToolSet("your-toolset", {
-  name: "Your Toolset",
-  category: "Category",
-  description: "Description",
-  tools: ({ workspaceId, agentId }) => createYourTools(workspaceId, agentId),
-});
-```
+### 2. Sharing Tools Across Tool Sets
 
-The `tools` property accepts either a static object or a function receiving `{ workspaceId, agentId }`. Use the function form when tools need runtime context.
+To reuse a tool in multiple tool sets, extract it into a **standalone exported factory function** in its primary file that returns a single `Tool`. Other tool set factories can then import and call it.
 
-````
+**Pattern:**
 
-### 2. Tools with Database Access
+1. In the tool's primary file, export a `create<ToolName>Tool(...)` factory that returns a `Tool`.
+2. The primary tool set's factory calls the standalone factory internally.
+3. Other tool set files import the standalone factory and include the result in their returned tools object.
+4. Use the **same key name** in every tool set so runtime deduplication works — `loadTools()` in `chat-execution.ts` uses `Object.assign()`, so identical keys naturally deduplicate.
 
-Pass database instance via closure or import shared connection:
+### 3. Tools with Database Access
 
-```typescript
-import { db } from "../db/index.ts";
-import { userTable } from "../db/schema.ts";
-import { eq } from "drizzle-orm";
+Import the shared `db` instance and table schemas following the pattern used by existing tools. Check any existing tool file (e.g., `agent-management.ts`, `kanban.ts`) for the correct import paths — they use Drizzle ORM for queries.
 
-export const getUserInfo = tool({
-  description: "Get user information by ID",
-  inputSchema: z.object({
-    userId: z.string().describe("User ID"),
-  }),
-  execute: async ({ userId }) => {
-    const user = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1);
+### 4. Tools with External API Calls
 
-    return { user: user[0] || null };
-  },
-});
-````
-
-### 3. Tools with External API Calls
-
-```typescript
-export const fetchWeather = tool({
-  description: "Get current weather for a location",
-  inputSchema: z.object({
-    city: z.string().describe("City name"),
-    country: z.string().optional().describe("Country code (e.g., US)"),
-  }),
-  execute: async ({ city, country }) => {
-    try {
-      const response = await fetch(
-        `https://api.weather.com?city=${city}&country=${country}`,
-      );
-      const data = await response.json();
-      return { weather: data };
-    } catch (error) {
-      return { error: "Failed to fetch weather data" };
-    }
-  },
-});
-```
-
-### 4. User Interaction Tools
-
-For tools that need user input during execution:
-
-```typescript
-// apps/backend/src/tools/elicitation.ts
-export const askFollowupQuestion = tool({
-  description: "Ask the user a follow-up question...",
-  inputSchema: z.object({
-    question: z.string().describe("The question to ask"),
-    followUp: z.array(z.string()).optional().describe("Suggested answers"),
-  }),
-  execute: async ({ question, followUp }) => {
-    // Tool execution triggers UI in frontend
-    // Frontend components/ask-followup-question-tool.tsx handles display
-    return { asked: true };
-  },
-});
-```
+Use standard `fetch()` inside the `execute` function. Always wrap in try-catch and return `{ error: "..." }` on failure. See `apps/backend/src/tools/fetch.ts` for a real example.
 
 ### 5. Custom Tool UI Components (Optional)
 
@@ -338,88 +263,12 @@ By default, tools display input/output as formatted JSON. For better UX, you can
 
 **How it works:**
 
-The `ChatMessage` component checks tool types and renders custom components:
-
-```typescript
-// apps/frontend/components/chat-message.tsx (lines 197-229)
-else if (part.type === "tool-askFollowupQuestion") {
-  return (
-    <AskFollowupQuestionTool
-      key={`${message.id}-${i}`}
-      toolPart={part as ToolUIPart}
-      onAppendToPrompt={onAppendToPrompt}
-      onSubmitMessage={onSubmitMessage}
-      messageId={message.id}
-      role={message.role}
-      index={i}
-    />
-  );
-} else if (part.type.startsWith("tool-")) {
-  // Default: generic tool rendering with JSON
-  const toolPart = part as ToolUIPart;
-  return (
-    <Tool key={`${message.id}-${i}`}>
-      <ToolHeader state={toolPart.state} type={toolPart.type} />
-      <ToolContent>
-        <ToolInput input={toolPart.input} />
-        <ToolOutput output={toolPart.output} errorText={toolPart.errorText} />
-      </ToolContent>
-    </Tool>
-  );
-}
-```
-
-**Real Example: AskFollowupQuestionTool**
-
-```typescript
-// apps/frontend/components/ask-followup-question-tool.tsx
-export const AskFollowupQuestionTool = ({
-  toolPart,
-  onAppendToPrompt,
-  onSubmitMessage,
-  messageId,
-  role,
-  index,
-}: AskFollowupQuestionToolProps) => {
-  const input = toolPart.input as PlatypusTools["askFollowupQuestion"]["input"];
-
-  // Handle error state
-  if (toolPart.state === "output-error") {
-    return <div className="text-destructive">Error: {toolPart.errorText}</div>;
-  }
-
-  // Handle streaming state
-  if (!input?.question && toolPart.state === "input-streaming") {
-    return <Loader2Icon className="animate-spin" />;
-  }
-
-  // Render custom UI with clickable suggestions
-  return (
-    <Message from={role}>
-      <MessageContent>
-        <MessageResponse>{input.question}</MessageResponse>
-        {input.followUp?.map((text, idx) => (
-          <Item
-            key={idx}
-            className="cursor-pointer"
-            onClick={() => onSubmitMessage?.(text)}
-          >
-            <ItemTitle>{text}</ItemTitle>
-            <MessageAction onClick={() => onAppendToPrompt?.(text)}>
-              <ClipboardPasteIcon />
-            </MessageAction>
-          </Item>
-        ))}
-      </MessageContent>
-    </Message>
-  );
-};
-```
+The `ChatMessage` component in `apps/frontend/components/chat-message.tsx` checks tool part types. Named tool types (e.g. `tool-loadSkill`) are matched with specific components before the generic `tool-*` fallback renders JSON. Read the file to see the current conditional rendering chain.
 
 **Steps to add custom tool UI:**
 
 1. **Create component** in `/apps/frontend/components/your-tool.tsx`
-2. **Add conditional rendering** in `/apps/frontend/components/chat-message.tsx`:
+2. **Add conditional rendering** in `chat-message.tsx` (before the generic `tool-*` fallback):
    ```typescript
    else if (part.type === "tool-yourToolName") {
      return <YourToolComponent toolPart={part as ToolUIPart} />;
@@ -428,26 +277,16 @@ export const AskFollowupQuestionTool = ({
 3. **Import component** at top of `chat-message.tsx`
 4. **Handle tool states**: `input-streaming`, `input-available`, `output-available`, `output-error`
 
-**Existing custom tool components:**
+**Existing custom tool components** (check `apps/frontend/components/` for current list):
 
-- `AskFollowupQuestionTool` - Interactive question suggestions
-- `LoadSkillTool` - Skill loading status display
+- `load-skill-tool.tsx` - Skill loading status display
+- `sub-agent-tool.tsx` - Sub-agent delegation with nested chat
 
 ---
 
 ## Tool Categories Reference
 
-Current categories used in Platypus:
-
-- **Math**: Mathematical operations and conversions
-- **Utilities**: General-purpose tools (time, formatting, etc.)
-- **Web**: Web-related tools (fetching URLs, etc.)
-- **Productivity**: Kanban boards, agent management
-- **Automation**: Scheduled tasks and cron jobs
-- **Communication**: Notifications and messaging
-- **MCP**: Model Context Protocol integrations (dynamic)
-
-Choose an existing category or create a new one as needed.
+Check `apps/backend/src/tools/index.ts` for the current list of categories used in `registerToolSet` calls. Choose an existing category or create a new one as needed.
 
 ---
 
@@ -455,11 +294,13 @@ Choose an existing category or create a new one as needed.
 
 **Tool Set**: A collection of related tools registered together
 
-- Example: `math-conversions` contains `convertFahrenheitToCelsius` and `convertCelsiusToFahrenheit`
+- Example: `math-conversions` contains `convertTemperature`, `convertDistance`, `convertWeight`, and `convertVolume`
 
 **Individual Tool**: A single executable function
 
-- Example: `convertFahrenheitToCelsius` is one tool within the set
+- Example: `convertTemperature` is one tool within the set
+
+**Sharing**: A single tool can appear in multiple tool sets via standalone factory functions (see "Sharing Tools Across Tool Sets" above).
 
 **Assignment**: Agents are assigned entire tool sets, not individual tools.
 
@@ -583,18 +424,19 @@ Result: { "converted": { "amount": 109, "currency": "EUR" }, "rate": 1.09 }
 
 ## Key Files Reference
 
-| File                                                      | Purpose                                                |
-| --------------------------------------------------------- | ------------------------------------------------------ |
-| `apps/backend/src/tools/index.ts`                         | Tool set registry and registration                     |
-| `apps/backend/src/tools/*.ts`                             | Individual tool implementations                        |
-| `apps/backend/src/routes/chat.ts`                         | Tool loading and execution logic                       |
-| `apps/backend/src/routes/tool.ts`                         | API endpoint for listing tools                         |
-| `packages/schemas/index.ts`                               | ToolSet and Tool schemas                               |
-| `apps/frontend/components/agent-form.tsx`                 | Tool assignment UI                                     |
-| `apps/frontend/components/chat-message.tsx`               | Tool rendering logic and custom component routing      |
-| `apps/frontend/components/ai-elements/tool.tsx`           | Default tool display, icon mapping, and toolset lookup |
-| `apps/frontend/components/ask-followup-question-tool.tsx` | Custom UI for followup questions tool                  |
-| `apps/frontend/components/load-skill-tool.tsx`            | Custom UI for skill loading tool                       |
+| File                                            | Purpose                                                |
+| ----------------------------------------------- | ------------------------------------------------------ |
+| `apps/backend/src/tools/index.ts`               | Tool set registry and registration                     |
+| `apps/backend/src/tools/*.ts`                   | Individual tool implementations                        |
+| `apps/backend/src/tools/*.test.ts`              | Co-located tool tests                                  |
+| `apps/backend/src/services/chat-execution.ts`   | Tool loading (`loadTools`) and execution logic         |
+| `apps/backend/src/routes/tool.ts`               | API endpoint for listing tools                         |
+| `packages/schemas/index.ts`                     | ToolSet and Tool schemas                               |
+| `apps/frontend/components/agent-form.tsx`       | Tool assignment UI                                     |
+| `apps/frontend/components/chat-message.tsx`     | Tool rendering logic and custom component routing      |
+| `apps/frontend/components/ai-elements/tool.tsx` | Default tool display, icon mapping, and toolset lookup |
+| `apps/frontend/components/load-skill-tool.tsx`  | Custom UI for skill loading tool                       |
+| `apps/frontend/components/sub-agent-tool.tsx`   | Custom UI for sub-agent delegation tool                |
 
 ---
 
@@ -602,11 +444,11 @@ Result: { "converted": { "amount": 109, "currency": "EUR" }, "rate": 1.09 }
 
 After adding your tool:
 
-1. Consider writing tests in `apps/backend/src/tools/__tests__/`
+1. Consider writing tests co-located at `apps/backend/src/tools/your-tool.test.ts`
 2. Document complex tools with JSDoc comments
 3. Create custom frontend UI if needed (see "Advanced Patterns" section above)
-   - Reference `ask-followup-question-tool.tsx` for interactive examples
    - Reference `load-skill-tool.tsx` for status display examples
+   - Reference `sub-agent-tool.tsx` for nested interaction examples
 
 ---
 

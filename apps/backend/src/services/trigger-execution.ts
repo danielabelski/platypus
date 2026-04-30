@@ -17,10 +17,11 @@ import {
   loadSkills,
   loadSubAgents,
   fetchUserContexts,
-  fetchFormattedMemories,
+  fetchMemories,
   prepareAgentTools,
   createSearchTools,
 } from "./chat-execution.ts";
+import type { SystemPromptContext } from "../system-prompt.ts";
 import { logger } from "../logger.ts";
 import { validateCronExpression } from "../utils/cron.ts";
 import type {
@@ -165,13 +166,13 @@ export const executeTrigger = async (
     skills,
     { subAgents, subAgentTools, subAgentMcpClients },
     { userGlobalContext, userWorkspaceContext },
-    memoriesFormatted,
+    memories,
   ] = await Promise.all([
     loadTools(agent, workspaceId, orgId, frontendUrl),
     loadSkills(agent, workspaceId),
     loadSubAgents(agent, orgId, workspaceId, frontendUrl),
     fetchUserContexts(workspace.ownerId, workspaceId),
-    fetchFormattedMemories(workspace.ownerId, workspaceId),
+    fetchMemories(workspace.ownerId, workspaceId),
   ]);
 
   // Merge sub-agent MCP clients into the parent list for unified cleanup
@@ -186,18 +187,19 @@ export const executeTrigger = async (
   Object.assign(tools, subAgentTools);
 
   // 9. Resolve generation config
-  const config = await resolveGenerationConfig(
-    {},
-    workspaceId,
+  const promptCtx: SystemPromptContext = {
+    workspace: { id: workspaceId, context: workspace.context ?? undefined },
     agent,
-    workspace.context || undefined,
+    user: {
+      ...user,
+      globalContext: userGlobalContext,
+      workspaceContext: userWorkspaceContext,
+    },
+    memories,
     skills,
-    user,
-    userGlobalContext,
-    userWorkspaceContext,
     subAgents,
-    memoriesFormatted,
-  );
+  };
+  const config = resolveGenerationConfig({}, agent, promptCtx);
 
   // 10. Prepare tools
   prepareAgentTools(tools, skills, workspaceId);

@@ -21,10 +21,13 @@ import {
 import { getToolSet } from "../tools/index.ts";
 import { createLoadSkillTool } from "../tools/skill.ts";
 import { createSubAgentTools } from "../tools/sub-agent.ts";
-import { renderSystemPrompt } from "../system-prompt.ts";
+import {
+  renderSystemPrompt,
+  type SystemPromptContext,
+} from "../system-prompt.ts";
 import {
   retrieveRecentSummaries,
-  formatSummariesForSystemPrompt,
+  type MemorySummary,
 } from "./memory-retrieval.ts";
 import type { Provider, Skill } from "@platypus/schemas";
 import type { Tool } from "ai";
@@ -300,21 +303,14 @@ export const createSearchTools = (
 
 /**
  * Resolves the generation configuration (system prompt, temperature, etc.)
- * by merging agent settings with request overrides and workspace context.
+ * by merging agent settings with request overrides and rendering the prompt
+ * from the supplied SystemPromptContext.
  */
-export const resolveGenerationConfig = async (
+export const resolveGenerationConfig = (
   data: ChatSubmitData,
-  workspaceId: string,
-  agent: typeof agentTable.$inferSelect | undefined = undefined,
-  workspaceContext: string | undefined = undefined,
-  skills: Array<Pick<Skill, "name" | "description">> | undefined = undefined,
-  user: { id: string; name: string },
-  userGlobalContext?: string,
-  userWorkspaceContext?: string,
-  subAgents?: Array<{ id: string; name: string; description?: string | null }>,
-  memoriesFormatted?: string,
-  hasMemoryTools?: boolean,
-): Promise<GenerationConfig> => {
+  agent: typeof agentTable.$inferSelect | undefined,
+  promptCtx: SystemPromptContext,
+): GenerationConfig => {
   const config: GenerationConfig = {};
   const source = agent || data;
 
@@ -331,26 +327,7 @@ export const resolveGenerationConfig = async (
     },
   );
 
-  const agentSystemPrompt =
-    (agent ? agent.systemPrompt : data.systemPrompt) || undefined;
-
-  const systemPrompt = renderSystemPrompt({
-    workspaceId,
-    workspaceContext,
-    agentSystemPrompt,
-    skills,
-    user,
-    userGlobalContext,
-    userWorkspaceContext,
-    subAgents: subAgents?.map((sa) => ({
-      ...sa,
-      description: sa.description || undefined,
-    })),
-    memoriesFormatted,
-    hasMemoryTools,
-  });
-
-  config.systemPrompt = systemPrompt;
+  config.systemPrompt = renderSystemPrompt(promptCtx);
   return config;
 };
 
@@ -486,15 +463,14 @@ export const fetchUserContexts = async (
 };
 
 /**
- * Fetches and formats recent daily summaries for the user.
+ * Fetches recent daily summary rows for the user. Formatting happens inside
+ * the system-prompt memories fragment.
  */
-export const fetchFormattedMemories = async (
+export const fetchMemories = async (
   userId: string,
   workspaceId: string,
-): Promise<string | undefined> => {
-  const summaries = await retrieveRecentSummaries(userId, workspaceId);
-  const formatted = formatSummariesForSystemPrompt(summaries);
-  return formatted || undefined;
+): Promise<MemorySummary[]> => {
+  return retrieveRecentSummaries(userId, workspaceId);
 };
 
 /**

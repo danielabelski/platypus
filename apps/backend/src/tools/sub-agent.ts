@@ -3,6 +3,16 @@ import { z } from "zod";
 import { logger } from "../logger.ts";
 
 /**
+ * Single source of truth for the sub-agent delegation tool name.
+ * The slug is "delegateTo<PascalCaseName>" — e.g. "Research Agent" → "delegateToResearchAgent".
+ */
+export const subAgentToolName = (subAgent: { name: string }): string =>
+  `delegateTo${subAgent.name
+    .replace(/[^a-zA-Z0-9]+(.)/g, (_, c) => c.toUpperCase())
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .replace(/^./, (c) => c.toUpperCase())}`;
+
+/**
  * Activity log entry for a sub-agent's execution.
  */
 type SubAgentActivityEntry = {
@@ -52,11 +62,7 @@ export const createSubAgentTool = (options: SubAgentToolOptions) => {
     maxSteps = 50,
   } = options;
 
-  // Generate a slugified tool name (e.g., "delegateToResearchAgent")
-  const toolName = `delegateTo${name
-    .replace(/[^a-zA-Z0-9]+(.)/g, (_, c) => c.toUpperCase())
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .replace(/^./, (c) => c.toUpperCase())}`;
+  const toolName = subAgentToolName({ name });
 
   const agent = new ToolLoopAgent({
     model,

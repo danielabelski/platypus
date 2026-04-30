@@ -8,7 +8,7 @@ const {
   mockLoadSkills,
   mockLoadSubAgents,
   mockFetchUserContexts,
-  mockFetchFormattedMemories,
+  mockFetchMemories,
   mockResolveGenerationConfig,
   mockPrepareAgentTools,
   mockCreateSearchTools,
@@ -20,7 +20,7 @@ const {
   mockLoadSkills: vi.fn(),
   mockLoadSubAgents: vi.fn(),
   mockFetchUserContexts: vi.fn(),
-  mockFetchFormattedMemories: vi.fn(),
+  mockFetchMemories: vi.fn(),
   mockResolveGenerationConfig: vi.fn(),
   mockPrepareAgentTools: vi.fn(),
   mockCreateSearchTools: vi.fn(),
@@ -38,7 +38,7 @@ vi.mock("./chat-execution.ts", () => ({
   loadSkills: mockLoadSkills,
   loadSubAgents: mockLoadSubAgents,
   fetchUserContexts: mockFetchUserContexts,
-  fetchFormattedMemories: mockFetchFormattedMemories,
+  fetchMemories: mockFetchMemories,
   resolveGenerationConfig: mockResolveGenerationConfig,
   prepareAgentTools: mockPrepareAgentTools,
   createSearchTools: mockCreateSearchTools,
@@ -154,8 +154,8 @@ function setupDefaultMocks() {
     userGlobalContext: "global",
     userWorkspaceContext: "workspace",
   });
-  mockFetchFormattedMemories.mockResolvedValue("");
-  mockResolveGenerationConfig.mockResolvedValue({
+  mockFetchMemories.mockResolvedValue([]);
+  mockResolveGenerationConfig.mockReturnValue({
     systemPrompt: "You are helpful",
     temperature: 0.7,
   });

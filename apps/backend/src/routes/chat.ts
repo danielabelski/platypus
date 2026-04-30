@@ -27,12 +27,12 @@ import {
   createSearchTools,
   resolveGenerationConfig,
   fetchUserContexts,
-  fetchFormattedMemories,
+  fetchMemories,
   prepareAgentTools,
   type ChatContext,
   type GenerationConfig,
 } from "../services/chat-execution.ts";
-import { MEMORY_TOOLSET_ID } from "../tools/index.ts";
+import type { SystemPromptContext } from "../system-prompt.ts";
 import {
   chatGenerateMetadataSchema,
   chatSubmitSchema,
@@ -280,13 +280,13 @@ chat.post(
       skills,
       { subAgents, subAgentTools, subAgentMcpClients },
       { userGlobalContext, userWorkspaceContext },
-      memoriesFormatted,
+      memories,
     ] = await Promise.all([
       loadTools(agent, workspaceId, orgId, frontendUrl, user.id),
       loadSkills(agent, workspaceId),
       loadSubAgents(agent, orgId, workspaceId, frontendUrl),
       fetchUserContexts(user.id, workspaceId),
-      fetchFormattedMemories(user.id, workspaceId),
+      fetchMemories(user.id, workspaceId),
     ]);
 
     // Merge sub-agent MCP clients into the parent list for unified cleanup
@@ -321,21 +321,21 @@ chat.post(
     Object.assign(tools, subAgentTools);
 
     // 7. Prepare Generation Config (Merge Agent & Request params)
-    const hasMemoryTools =
-      agent?.toolSetIds?.includes(MEMORY_TOOLSET_ID) ?? false;
-    const config = await resolveGenerationConfig(
-      data,
-      workspaceId,
-      agent,
-      workspace.context || undefined,
+    const promptCtx: SystemPromptContext = {
+      workspace: { id: workspaceId, context: workspace.context ?? undefined },
+      agent: agent ?? null,
+      user: {
+        id: user.id,
+        name: user.name,
+        globalContext: userGlobalContext,
+        workspaceContext: userWorkspaceContext,
+      },
+      memories,
       skills,
-      { id: user.id, name: user.name },
-      userGlobalContext,
-      userWorkspaceContext,
       subAgents,
-      memoriesFormatted,
-      hasMemoryTools,
-    );
+      fallbackSystemPrompt: data.systemPrompt,
+    };
+    const config = resolveGenerationConfig(data, agent, promptCtx);
 
     // 8. Inject loadSkill tool if skills exist
     prepareAgentTools(tools, skills, workspaceId);

@@ -2,6 +2,8 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "../index.ts";
 import { memoryDailySummary as memoryDailySummaryTable } from "../db/schema.ts";
 
+export type MemorySummary = typeof memoryDailySummaryTable.$inferSelect;
+
 /**
  * Retrieves the most recent daily summaries for a user in a workspace.
  */
@@ -9,7 +11,7 @@ export async function retrieveRecentSummaries(
   userId: string,
   workspaceId: string,
   days: number = 2,
-): Promise<(typeof memoryDailySummaryTable.$inferSelect)[]> {
+): Promise<MemorySummary[]> {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - days);
   const cutoffDateStr = cutoffDate.toISOString().split("T")[0];
@@ -31,7 +33,7 @@ export async function retrieveRecentSummaries(
  * Formats daily summaries for injection into the system prompt.
  */
 export function formatSummariesForSystemPrompt(
-  summaries: (typeof memoryDailySummaryTable.$inferSelect)[],
+  summaries: MemorySummary[],
 ): string {
   const withContent = summaries.filter((s) => s.summary.trim());
   if (withContent.length === 0) {

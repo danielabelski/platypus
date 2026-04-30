@@ -14,9 +14,11 @@ import { and, eq, or, inArray } from "drizzle-orm";
 import { db } from "../index.ts";
 import {
   agent as agentTable,
+  context as contextTable,
   mcp as mcpTable,
   provider as providerTable,
   skill as skillTable,
+  workspace as workspaceTable,
 } from "../db/schema.ts";
 import { getToolSet } from "../tools/index.ts";
 import { createLoadSkillTool } from "../tools/skill.ts";
@@ -29,10 +31,41 @@ import {
   retrieveRecentSummaries,
   type MemorySummary,
 } from "./memory-retrieval.ts";
-import type { Provider, Skill } from "@platypus/schemas";
+import type {
+  ChatSubmitData as ChatSubmitDataSchema,
+  Provider,
+  Skill,
+} from "@platypus/schemas";
 import type { Tool } from "ai";
 import { logger } from "../logger.ts";
 import { buildMcpTransportConfig } from "./mcp-oauth-provider.ts";
+import { inlineFileUrls } from "../storage/utils.ts";
+import type { PlatypusUIMessage } from "../types.ts";
+
+// --- Errors ---
+
+/**
+ * Thrown when the caller's request is malformed or references resources in an
+ * inconsistent way (e.g. a model id not enabled on the chosen provider).
+ * The route maps this to a 400 response.
+ */
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
+/**
+ * Thrown when a referenced record does not exist (Agent, Provider, Workspace).
+ * The route maps this to a 404 response.
+ */
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotFoundError";
+  }
+}
 
 // --- Types ---
 
@@ -70,10 +103,172 @@ export type ChatSubmitData = {
   frequencyPenalty?: number;
 };
 
+export type ChatTurn = {
+  stream: {
+    model: any;
+    tools: Record<string, Tool>;
+    system: string;
+    messages: PlatypusUIMessage[];
+    maxSteps: number;
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+    frequencyPenalty?: number;
+    presencePenalty?: number;
+    seed?: number;
+  };
+  resolved: {
+    agentId?: string;
+    providerId: string;
+    modelId: string;
+    systemPrompt?: string;
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+    frequencyPenalty?: number;
+    presencePenalty?: number;
+    seed?: number;
+  };
+  dispose: () => Promise<void>;
+};
+
+export type PrepareChatTurnInput = {
+  orgId: string;
+  workspaceId: string;
+  user: { id: string; name: string };
+  request: ChatSubmitDataSchema;
+  messages: PlatypusUIMessage[];
+  origin: string;
+  frontendUrl?: string;
+};
+
+// --- Public Module: prepare a Chat turn ---
+
+/**
+ * Prepares everything required to run a Chat turn: resolves the Agent and
+ * Provider, builds the model, loads Tools / Skills / sub-Agents / Memories,
+ * renders the system prompt, inlines file URLs, and returns a stream-ready
+ * config plus a `dispose` to release MCP clients.
+ *
+ * Caller passes the result to `streamText` and calls `dispose` on abort and
+ * on `onFinish`. Persistence reads from `resolved`.
+ */
+export const prepareChatTurn = async (
+  input: PrepareChatTurnInput,
+): Promise<ChatTurn> => {
+  const { orgId, workspaceId, user, request, messages, origin, frontendUrl } =
+    input;
+
+  const workspace = await fetchWorkspace(workspaceId);
+  const context = await resolveChatContext(
+    request as ChatSubmitData,
+    orgId,
+    workspaceId,
+  );
+  const { provider, agent, resolvedModelId, resolvedMaxSteps } = context;
+
+  const [aiProvider, model] = createModel(provider, resolvedModelId);
+
+  const [
+    { tools, mcpClients },
+    skills,
+    { subAgents, subAgentTools, subAgentMcpClients },
+    { userGlobalContext, userWorkspaceContext },
+    memories,
+  ] = await Promise.all([
+    loadTools(agent, workspaceId, orgId, frontendUrl, user.id),
+    loadSkills(agent, workspaceId),
+    loadSubAgents(agent, orgId, workspaceId, frontendUrl),
+    fetchUserContexts(user.id, workspaceId),
+    fetchMemories(user.id, workspaceId),
+  ]);
+
+  const allMcpClients = [...mcpClients, ...subAgentMcpClients];
+
+  if (request.search) {
+    Object.assign(tools, createSearchTools(provider, aiProvider));
+  }
+
+  Object.assign(tools, subAgentTools);
+
+  const promptCtx: SystemPromptContext = {
+    workspace: { id: workspaceId, context: workspace.context ?? undefined },
+    agent: agent ?? null,
+    user: {
+      id: user.id,
+      name: user.name,
+      globalContext: userGlobalContext,
+      workspaceContext: userWorkspaceContext,
+    },
+    memories,
+    skills,
+    subAgents,
+    fallbackSystemPrompt: request.systemPrompt,
+  };
+
+  const generation = resolveGenerationConfig(
+    request as ChatSubmitData,
+    agent,
+    promptCtx,
+  );
+
+  prepareAgentTools(tools, skills, workspaceId);
+
+  const inlinedMessages = await inlineFileUrls(messages, origin);
+
+  let disposed = false;
+  const dispose = async () => {
+    if (disposed) return;
+    disposed = true;
+    for (const client of allMcpClients) {
+      try {
+        await client.close();
+      } catch (e) {
+        logger.error({ error: e }, "Error closing MCP client");
+      }
+    }
+  };
+
+  const systemPrompt = generation.systemPrompt!;
+
+  return {
+    stream: {
+      model,
+      tools,
+      system: systemPrompt,
+      messages: inlinedMessages,
+      maxSteps: resolvedMaxSteps,
+      temperature: generation.temperature,
+      topP: generation.topP,
+      topK: generation.topK,
+      frequencyPenalty: generation.frequencyPenalty,
+      presencePenalty: generation.presencePenalty,
+      seed: request.seed,
+    },
+    resolved: {
+      agentId: context.resolvedAgentId,
+      providerId: context.resolvedProviderId,
+      modelId: context.resolvedModelId,
+      // Only Direct (no-Agent) turns persist generation params on the row;
+      // Agent-driven turns read them back from the Agent record.
+      systemPrompt: agent ? undefined : systemPrompt,
+      temperature: agent ? undefined : generation.temperature,
+      topP: agent ? undefined : generation.topP,
+      topK: agent ? undefined : generation.topK,
+      frequencyPenalty: agent ? undefined : generation.frequencyPenalty,
+      presencePenalty: agent ? undefined : generation.presencePenalty,
+      seed: agent ? undefined : request.seed,
+    },
+    dispose,
+  };
+};
+
 // --- Helper Functions ---
 
 /**
  * Creates a LanguageModel instance based on the provider configuration.
+ * Exported as a primitive because one-shot callers (e.g. metadata generation)
+ * need a model without the rest of a Chat turn's apparatus.
  */
 export const createModel = (provider: Provider, modelId: string) => {
   if (provider.providerType === "OpenAI") {
@@ -120,6 +315,20 @@ export const createModel = (provider: Provider, modelId: string) => {
   }
 };
 
+const fetchWorkspace = async (
+  workspaceId: string,
+): Promise<typeof workspaceTable.$inferSelect> => {
+  const rows = await db
+    .select()
+    .from(workspaceTable)
+    .where(eq(workspaceTable.id, workspaceId))
+    .limit(1);
+  if (rows.length === 0) {
+    throw new NotFoundError(`Workspace '${workspaceId}' not found`);
+  }
+  return rows[0];
+};
+
 /**
  * Resolves the chat context: determines the agent (if any), provider, and model to use.
  */
@@ -151,7 +360,7 @@ export const resolveChatContext = async (
       .limit(1);
 
     if (agentRecord.length === 0) {
-      throw new Error(`Agent '${agentId}' not found`);
+      throw new NotFoundError(`Agent '${agentId}' not found`);
     }
     agent = agentRecord[0];
     resolvedProviderId = agent.providerId;
@@ -163,7 +372,9 @@ export const resolveChatContext = async (
     resolvedModelId = modelId;
     resolvedAgentId = undefined;
   } else {
-    throw new Error("Must provide either agentId or (providerId and modelId)");
+    throw new ValidationError(
+      "Must provide either agentId or (providerId and modelId)",
+    );
   }
 
   // Get the provider record from the database
@@ -182,13 +393,15 @@ export const resolveChatContext = async (
     .limit(1);
 
   if (providerRecord.length === 0) {
-    throw new Error(`Provider with id '${resolvedProviderId}' not found`);
+    throw new NotFoundError(
+      `Provider with id '${resolvedProviderId}' not found`,
+    );
   }
   const provider = providerRecord[0] as Provider;
 
   // Check the received modelId is enabled/defined on the provider
   if (!provider.modelIds.includes(resolvedModelId)) {
-    throw new Error(
+    throw new ValidationError(
       `Model id '${resolvedModelId}' not enabled for provider '${resolvedProviderId}'`,
     );
   }
@@ -438,8 +651,6 @@ export const fetchUserContexts = async (
   userId: string,
   workspaceId: string,
 ): Promise<{ userGlobalContext?: string; userWorkspaceContext?: string }> => {
-  const { context: contextTable } = await import("../db/schema.ts");
-
   let userGlobalContext: string | undefined;
   let userWorkspaceContext: string | undefined;
 

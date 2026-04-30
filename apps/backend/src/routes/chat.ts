@@ -20,19 +20,11 @@ import {
 } from "../db/schema.ts";
 import {
   createModel,
-  resolveChatContext,
-  loadTools,
-  loadSkills,
-  loadSubAgents,
-  createSearchTools,
-  resolveGenerationConfig,
-  fetchUserContexts,
-  fetchMemories,
-  prepareAgentTools,
-  type ChatContext,
-  type GenerationConfig,
+  prepareChatTurn,
+  NotFoundError,
+  ValidationError,
+  type ChatTurn,
 } from "../services/chat-execution.ts";
-import type { SystemPromptContext } from "../system-prompt.ts";
 import {
   chatGenerateMetadataSchema,
   chatSubmitSchema,
@@ -52,7 +44,6 @@ import { logger } from "../logger.ts";
 import { type PlatypusUIMessage } from "../types.ts";
 import {
   extractFiles,
-  inlineFileUrls,
   rewriteStorageUrls,
   deleteFiles,
 } from "../storage/utils.ts";
@@ -66,11 +57,10 @@ const upsertChatRecord = async (
   orgId: string,
   workspaceId: string,
   messages: PlatypusUIMessage[],
-  context: ChatContext,
-  config: GenerationConfig,
+  resolved: ChatTurn["resolved"],
   data: ChatSubmitData,
 ) => {
-  const { resolvedAgentId, resolvedProviderId, resolvedModelId } = context;
+  const { agentId } = resolved;
 
   // Extract files from messages and store them
   const processedMessages = await extractFiles(messages, {
@@ -79,31 +69,28 @@ const upsertChatRecord = async (
     chatId: id,
   });
 
-  // Prepare values for DB
   const dbValues = {
     messages: processedMessages,
-    agentId: resolvedAgentId || null,
-    providerId: resolvedAgentId ? null : resolvedProviderId,
-    modelId: resolvedAgentId ? null : resolvedModelId,
-    systemPrompt: resolvedAgentId ? null : config.systemPrompt || null,
-    temperature: resolvedAgentId ? null : config.temperature || null,
-    topP: resolvedAgentId ? null : config.topP || null,
-    topK: resolvedAgentId ? null : config.topK || null,
-    seed: resolvedAgentId ? null : data.seed || null,
-    presencePenalty: resolvedAgentId ? null : config.presencePenalty || null,
-    frequencyPenalty: resolvedAgentId ? null : config.frequencyPenalty || null,
+    agentId: agentId ?? null,
+    providerId: agentId ? null : resolved.providerId,
+    modelId: agentId ? null : resolved.modelId,
+    systemPrompt: resolved.systemPrompt ?? null,
+    temperature: resolved.temperature ?? null,
+    topP: resolved.topP ?? null,
+    topK: resolved.topK ?? null,
+    seed: resolved.seed ?? data.seed ?? null,
+    presencePenalty: resolved.presencePenalty ?? null,
+    frequencyPenalty: resolved.frequencyPenalty ?? null,
     updatedAt: new Date(),
   };
 
   try {
-    // Upsert chat record - try update first, then insert if not found
     const updateResult = await db
       .update(chatTable)
       .set(dbValues)
       .where(and(eq(chatTable.id, id), eq(chatTable.workspaceId, workspaceId)))
       .returning();
 
-    // If no rows were updated, insert the record
     if (updateResult.length === 0) {
       await db.insert(chatTable).values({
         id,
@@ -236,125 +223,51 @@ chat.post(
     const workspaceId = c.req.param("workspaceId")!;
     const data = c.req.valid("json");
     const { messages = [] } = data;
-
-    // 1. Fetch workspace to get system prompt
-    const workspaceRecord = await db
-      .select()
-      .from(workspaceTable)
-      .where(eq(workspaceTable.id, workspaceId))
-      .limit(1);
-
-    if (workspaceRecord.length === 0) {
-      throw new Error(`Workspace '${workspaceId}' not found`);
-    }
-    const workspace = workspaceRecord[0];
-
-    // 2. Resolve Context (Agent vs Direct) & Provider
-    let context: Awaited<ReturnType<typeof resolveChatContext>>;
-    try {
-      context = await resolveChatContext(data, orgId, workspaceId);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to resolve chat context";
-      return c.json({ message }, 400);
-    }
-    const {
-      provider,
-      agent,
-      resolvedAgentId,
-      resolvedModelId,
-      resolvedMaxSteps,
-    } = context;
-
-    // 3. Initialize Model
-    const [aiProvider, model] = createModel(provider, resolvedModelId);
-
-    // 4. Load tools, skills, sub-agents, and user context in parallel
-    const frontendUrl = process.env.FRONTEND_URL;
     const user = c.get("user")!;
 
-    const [
-      { tools, mcpClients },
-      skills,
-      { subAgents, subAgentTools, subAgentMcpClients },
-      { userGlobalContext, userWorkspaceContext },
-      memories,
-    ] = await Promise.all([
-      loadTools(agent, workspaceId, orgId, frontendUrl, user.id),
-      loadSkills(agent, workspaceId),
-      loadSubAgents(agent, orgId, workspaceId, frontendUrl),
-      fetchUserContexts(user.id, workspaceId),
-      fetchMemories(user.id, workspaceId),
-    ]);
-
-    // Merge sub-agent MCP clients into the parent list for unified cleanup
-    mcpClients.push(...subAgentMcpClients);
-
-    // MCP client lifecycle management - close on finish or abort to prevent leaks
-    let mcpClientsClosed = false;
-    const closeMcpClients = async () => {
-      if (mcpClientsClosed) return;
-      mcpClientsClosed = true;
-      for (const client of mcpClients) {
-        try {
-          await client.close();
-        } catch (e) {
-          logger.error({ error: e }, "Error closing MCP client");
-        }
-      }
-    };
-
-    if (mcpClients.length > 0) {
-      c.req.raw.signal.addEventListener("abort", () => {
-        closeMcpClients();
+    let turn: ChatTurn;
+    try {
+      turn = await prepareChatTurn({
+        orgId,
+        workspaceId,
+        user: { id: user.id, name: user.name },
+        request: data,
+        messages,
+        origin: getOrigin(c),
+        frontendUrl: process.env.FRONTEND_URL,
       });
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return c.json({ message: error.message }, 400);
+      }
+      if (error instanceof NotFoundError) {
+        return c.json({ message: error.message }, 404);
+      }
+      throw error;
     }
 
-    // 6. Configure Search (if enabled)
-    if (data.search) {
-      Object.assign(tools, createSearchTools(provider, aiProvider));
-    }
+    c.req.raw.signal.addEventListener("abort", () => {
+      void turn.dispose();
+    });
 
-    // Merge sub-agent delegate tools into the parent tool set
-    Object.assign(tools, subAgentTools);
-
-    // 7. Prepare Generation Config (Merge Agent & Request params)
-    const promptCtx: SystemPromptContext = {
-      workspace: { id: workspaceId, context: workspace.context ?? undefined },
-      agent: agent ?? null,
-      user: {
-        id: user.id,
-        name: user.name,
-        globalContext: userGlobalContext,
-        workspaceContext: userWorkspaceContext,
-      },
-      memories,
-      skills,
-      subAgents,
-      fallbackSystemPrompt: data.systemPrompt,
-    };
-    const config = resolveGenerationConfig(data, agent, promptCtx);
-
-    // 8. Inject loadSkill tool if skills exist
-    prepareAgentTools(tools, skills, workspaceId);
-
-    // 9. Stream Response
-    const { systemPrompt, ...restConfig } = config;
-
-    logger.debug({ systemPrompt }, "System prompt for chat");
-
-    const inlinedMessages = await inlineFileUrls(messages, getOrigin(c));
+    logger.debug(
+      { systemPrompt: turn.stream.system },
+      "System prompt for chat",
+    );
 
     const result = streamText({
-      model: model as any,
-      messages: await convertToModelMessages(inlinedMessages),
-      stopWhen: [stepCountIs(resolvedMaxSteps)],
-      tools,
-      system: systemPrompt,
+      model: turn.stream.model as any,
+      messages: await convertToModelMessages(turn.stream.messages),
+      stopWhen: [stepCountIs(turn.stream.maxSteps)],
+      tools: turn.stream.tools,
+      system: turn.stream.system,
       abortSignal: c.req.raw.signal,
-      ...restConfig,
+      temperature: turn.stream.temperature,
+      topP: turn.stream.topP,
+      topK: turn.stream.topK,
+      frequencyPenalty: turn.stream.frequencyPenalty,
+      presencePenalty: turn.stream.presencePenalty,
+      seed: turn.stream.seed,
     });
 
     return result.toUIMessageStreamResponse<PlatypusUIMessage>({
@@ -364,7 +277,7 @@ chat.post(
         size: 16,
       }),
       messageMetadata: () =>
-        resolvedAgentId ? { agentId: resolvedAgentId } : undefined,
+        turn.resolved.agentId ? { agentId: turn.resolved.agentId } : undefined,
       onError: (error) => {
         logger.error({ error }, "Chat stream error");
         if (LoadAPIKeyError.isInstance(error)) {
@@ -387,19 +300,15 @@ chat.post(
         }
         return "An unexpected error occurred.";
       },
-      onFinish: async ({ messages }) => {
+      onFinish: async ({ messages: finalMessages }) => {
         try {
-          // Close all MCP clients
-          await closeMcpClients();
-
-          // Upsert chat record
+          await turn.dispose();
           await upsertChatRecord(
             data.id,
             orgId,
             workspaceId,
-            messages,
-            context,
-            config,
+            finalMessages,
+            turn.resolved,
             data,
           );
         } catch (error) {

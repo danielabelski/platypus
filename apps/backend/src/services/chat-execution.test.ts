@@ -41,17 +41,11 @@ vi.mock("@ai-sdk/anthropic", () => ({
   createAnthropic: mockCreateAnthropic.creator,
 }));
 
-// Also mock the dynamic import of schema used by fetchUserContexts
-vi.mock("../db/schema.ts", async () => {
-  const actual = await vi.importActual("../db/schema.ts");
-  return actual;
-});
-
 import {
   createModel,
-  resolveChatContext,
-  loadSkills,
-  fetchUserContexts,
+  prepareChatTurn,
+  NotFoundError,
+  ValidationError,
 } from "./chat-execution.ts";
 
 const baseProvider = {
@@ -70,6 +64,50 @@ const baseProvider = {
   extraBody: null,
   createdAt: new Date(),
   updatedAt: new Date(),
+};
+
+const baseAgent = {
+  id: "agent-1",
+  name: "Test Agent",
+  workspaceId: "ws-1",
+  providerId: "p1",
+  modelId: "gpt-4",
+  maxSteps: 3,
+  systemPrompt: null,
+  temperature: null,
+  topP: null,
+  topK: null,
+  frequencyPenalty: null,
+  presencePenalty: null,
+  seed: null,
+  toolSetIds: [],
+  skillIds: [],
+  subAgentIds: [],
+  description: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const baseWorkspace = {
+  id: "ws-1",
+  organizationId: "org-1",
+  ownerId: "user-1",
+  name: "Test Workspace",
+  context: null,
+  taskModelProviderId: null,
+  memoryExtractionProviderId: null,
+  memoryEmbeddingProviderId: null,
+  maxDailySummaries: 30,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const baseInput = {
+  orgId: "org-1",
+  workspaceId: "ws-1",
+  user: { id: "user-1", name: "Test User" },
+  messages: [],
+  origin: "http://localhost:4000",
 };
 
 describe("chat-execution", () => {
@@ -134,184 +172,169 @@ describe("chat-execution", () => {
     });
   });
 
-  describe("resolveChatContext", () => {
-    const agentRecord = {
-      id: "agent-1",
-      name: "Test Agent",
-      workspaceId: "ws-1",
-      providerId: "p1",
-      modelId: "gpt-4",
-      maxSteps: 3,
-      systemPrompt: null,
-      temperature: null,
-      topP: null,
-      topK: null,
-      frequencyPenalty: null,
-      presencePenalty: null,
-      seed: null,
-      toolSetIds: [],
-      skillIds: [],
-      subAgentIds: [],
-      description: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    const providerRecord = {
-      ...baseProvider,
-      modelIds: ["gpt-4"],
-    };
-
-    it("resolves context from agentId", async () => {
-      mockDb.limit
-        .mockResolvedValueOnce([agentRecord])
-        .mockResolvedValueOnce([providerRecord]);
-
-      const result = await resolveChatContext(
-        { agentId: "agent-1" },
-        "org-1",
-        "ws-1",
-      );
-
-      expect(result.resolvedAgentId).toBe("agent-1");
-      expect(result.resolvedModelId).toBe("gpt-4");
-      expect(result.resolvedProviderId).toBe("p1");
-      expect(result.resolvedMaxSteps).toBe(3);
-      expect(result.agent).toEqual(agentRecord);
-    });
-
-    it("throws when agent not found", async () => {
-      mockDb.limit.mockResolvedValueOnce([]);
-
-      await expect(
-        resolveChatContext({ agentId: "agent-missing" }, "org-1", "ws-1"),
-      ).rejects.toThrow("Agent 'agent-missing' not found");
-    });
-
-    it("resolves from providerId+modelId (no agent)", async () => {
-      mockDb.limit.mockResolvedValueOnce([providerRecord]);
-
-      const result = await resolveChatContext(
-        { providerId: "p1", modelId: "gpt-4" },
-        "org-1",
-        "ws-1",
-      );
-
-      expect(result.resolvedProviderId).toBe("p1");
-      expect(result.resolvedModelId).toBe("gpt-4");
-      expect(result.resolvedAgentId).toBeUndefined();
-      expect(result.agent).toBeUndefined();
-    });
-
-    it("throws when neither agentId nor providerId+modelId", async () => {
-      await expect(resolveChatContext({}, "org-1", "ws-1")).rejects.toThrow(
-        "Must provide either agentId or (providerId and modelId)",
-      );
-    });
-
-    it("throws when provider not found", async () => {
-      mockDb.limit.mockResolvedValueOnce([]);
-
-      await expect(
-        resolveChatContext(
-          { providerId: "p-missing", modelId: "gpt-4" },
-          "org-1",
-          "ws-1",
-        ),
-      ).rejects.toThrow("Provider with id 'p-missing' not found");
-    });
-
-    it("throws when modelId not in provider's modelIds", async () => {
-      mockDb.limit.mockResolvedValueOnce([
-        { ...providerRecord, modelIds: ["gpt-3"] },
-      ]);
-
-      await expect(
-        resolveChatContext(
-          { providerId: "p1", modelId: "gpt-4" },
-          "org-1",
-          "ws-1",
-        ),
-      ).rejects.toThrow("Model id 'gpt-4' not enabled for provider 'p1'");
-    });
-
-    it("does not modify modelId when search=true", async () => {
-      const openRouterProvider = {
-        ...providerRecord,
-        providerType: "OpenRouter" as const,
-        modelIds: ["openai/gpt-4"],
+  describe("prepareChatTurn", () => {
+    it("Agent selection produces resolved IDs and a system prompt that surfaces the Agent's Skills", async () => {
+      const agentWithSkill = {
+        ...baseAgent,
+        skillIds: ["skill-1"],
       };
-      mockDb.limit.mockResolvedValueOnce([openRouterProvider]);
 
-      const result = await resolveChatContext(
-        { providerId: "p1", modelId: "openai/gpt-4", search: true },
-        "org-1",
-        "ws-1",
-      );
+      // .limit() is the awaited terminal for fetchWorkspace + the two
+      // resolveChatContext queries (workspace, agent, provider).
+      mockDb.limit
+        .mockResolvedValueOnce([baseWorkspace])
+        .mockResolvedValueOnce([agentWithSkill])
+        .mockResolvedValueOnce([baseProvider]);
 
-      expect(result.resolvedModelId).toBe("openai/gpt-4");
-    });
-  });
+      // .where() is mid-chain for those three queries (returns mockDb so
+      // .limit() can be called on it) and then terminal for loadSkills and
+      // fetchUserContexts in the parallel block.
+      mockDb.where
+        .mockReturnValueOnce(mockDb)
+        .mockReturnValueOnce(mockDb)
+        .mockReturnValueOnce(mockDb)
+        .mockResolvedValueOnce([
+          { name: "kanban-flow", description: "Manage kanban boards" },
+        ])
+        .mockResolvedValueOnce([]);
+      mockDb.orderBy.mockResolvedValueOnce([]); // retrieveRecentSummaries
 
-  describe("loadSkills", () => {
-    it("returns empty array when agent undefined", async () => {
-      const result = await loadSkills(undefined, "ws-1");
-      expect(result).toEqual([]);
-    });
+      const turn = await prepareChatTurn({
+        ...baseInput,
+        request: { id: "chat-1", agentId: agentWithSkill.id },
+      });
 
-    it("returns empty array when skillIds empty", async () => {
-      const agent = { skillIds: [] } as any;
-      const result = await loadSkills(agent, "ws-1");
-      expect(result).toEqual([]);
-    });
+      // resolved is what persistence will write
+      expect(turn.resolved.agentId).toBe(agentWithSkill.id);
+      expect(turn.resolved.providerId).toBe(baseProvider.id);
+      expect(turn.resolved.modelId).toBe("gpt-4");
+      // Agent-driven turn → row stores no copy of generation params
+      expect(turn.resolved.systemPrompt).toBeUndefined();
+      expect(turn.resolved.temperature).toBeUndefined();
 
-    it("returns skills from DB", async () => {
-      const skillRecords = [
-        { name: "Skill A", description: "Does A" },
-        { name: "Skill B", description: "Does B" },
-      ];
-      mockDb.where.mockResolvedValueOnce(skillRecords);
+      // stream is what streamText will consume
+      expect(turn.stream.maxSteps).toBe(3);
+      expect(turn.stream.system).toContain("kanban-flow");
+      expect(turn.stream.system).toContain("Manage kanban boards");
+      expect(turn.stream.tools).toHaveProperty("loadSkill");
+      expect(turn.stream.messages).toEqual([]);
 
-      const agent = { skillIds: ["s1", "s2"] } as any;
-      const result = await loadSkills(agent, "ws-1");
-
-      expect(result).toEqual(skillRecords);
-    });
-  });
-
-  describe("fetchUserContexts", () => {
-    it("returns global and workspace contexts", async () => {
-      const contexts = [
-        { content: "global context", workspaceId: null },
-        { content: "workspace context", workspaceId: "ws-1" },
-      ];
-      mockDb.where.mockResolvedValueOnce(contexts);
-
-      const result = await fetchUserContexts("user-1", "ws-1");
-
-      expect(result.userGlobalContext).toBe("global context");
-      expect(result.userWorkspaceContext).toBe("workspace context");
+      // dispose is idempotent and does nothing without MCP clients
+      await expect(turn.dispose()).resolves.toBeUndefined();
+      await expect(turn.dispose()).resolves.toBeUndefined();
     });
 
-    it("returns undefined for both when no contexts", async () => {
-      mockDb.where.mockResolvedValueOnce([]);
+    it("Direct Provider+Model selection populates resolved.systemPrompt and merges request overrides", async () => {
+      mockDb.limit
+        .mockResolvedValueOnce([baseWorkspace]) // fetchWorkspace
+        .mockResolvedValueOnce([baseProvider]); // resolveChatContext: provider (no agent fetch)
 
-      const result = await fetchUserContexts("user-1", "ws-1");
+      // .where() mid-chain twice (workspace, provider lookups), then terminal
+      // for fetchUserContexts. No agent → loadTools/loadSkills/loadSubAgents
+      // all short-circuit before hitting the DB.
+      mockDb.where
+        .mockReturnValueOnce(mockDb)
+        .mockReturnValueOnce(mockDb)
+        .mockResolvedValueOnce([]);
+      mockDb.orderBy.mockResolvedValueOnce([]); // retrieveRecentSummaries
 
-      expect(result.userGlobalContext).toBeUndefined();
-      expect(result.userWorkspaceContext).toBeUndefined();
+      const turn = await prepareChatTurn({
+        ...baseInput,
+        request: {
+          id: "chat-2",
+          providerId: baseProvider.id,
+          modelId: "gpt-4",
+          systemPrompt: "Be terse.",
+          temperature: 0.7,
+        },
+      });
+
+      expect(turn.resolved.agentId).toBeUndefined();
+      expect(turn.resolved.providerId).toBe(baseProvider.id);
+      expect(turn.resolved.modelId).toBe("gpt-4");
+      // Direct turn → resolved carries the params that will be written to the row
+      expect(turn.resolved.systemPrompt).toBeDefined();
+      expect(turn.resolved.systemPrompt).toContain("Be terse.");
+      expect(turn.resolved.temperature).toBe(0.7);
+
+      // stream config matches resolved on a Direct turn
+      expect(turn.stream.system).toContain("Be terse.");
+      expect(turn.stream.temperature).toBe(0.7);
+      // Direct turns default maxSteps to 1
+      expect(turn.stream.maxSteps).toBe(1);
     });
 
-    it("ignores contexts for other workspaces", async () => {
-      const contexts = [
-        { content: "other workspace context", workspaceId: "ws-other" },
-      ];
-      mockDb.where.mockResolvedValueOnce(contexts);
+    it("throws ValidationError when neither agentId nor providerId+modelId is supplied", async () => {
+      mockDb.limit.mockResolvedValueOnce([baseWorkspace]); // fetchWorkspace succeeds
 
-      const result = await fetchUserContexts("user-1", "ws-1");
+      await expect(
+        prepareChatTurn({
+          ...baseInput,
+          request: { id: "chat-3" } as any,
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
 
-      expect(result.userGlobalContext).toBeUndefined();
-      expect(result.userWorkspaceContext).toBeUndefined();
+    it("throws NotFoundError when the Agent does not exist", async () => {
+      mockDb.limit
+        .mockResolvedValueOnce([baseWorkspace]) // fetchWorkspace
+        .mockResolvedValueOnce([]); // resolveChatContext: agent missing
+
+      await expect(
+        prepareChatTurn({
+          ...baseInput,
+          request: { id: "chat-4", agentId: "agent-missing" },
+        }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it("throws NotFoundError when the Provider does not exist", async () => {
+      mockDb.limit
+        .mockResolvedValueOnce([baseWorkspace]) // fetchWorkspace
+        .mockResolvedValueOnce([]); // resolveChatContext: provider missing
+
+      await expect(
+        prepareChatTurn({
+          ...baseInput,
+          request: {
+            id: "chat-5",
+            providerId: "p-missing",
+            modelId: "gpt-4",
+          },
+        }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it("throws ValidationError when the model id is not enabled on the Provider", async () => {
+      mockDb.limit
+        .mockResolvedValueOnce([baseWorkspace]) // fetchWorkspace
+        .mockResolvedValueOnce([{ ...baseProvider, modelIds: ["gpt-3.5"] }]);
+
+      await expect(
+        prepareChatTurn({
+          ...baseInput,
+          request: {
+            id: "chat-6",
+            providerId: baseProvider.id,
+            modelId: "gpt-4",
+          },
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("throws NotFoundError when the Workspace does not exist", async () => {
+      mockDb.limit.mockResolvedValueOnce([]); // fetchWorkspace miss
+
+      await expect(
+        prepareChatTurn({
+          ...baseInput,
+          request: {
+            id: "chat-7",
+            providerId: baseProvider.id,
+            modelId: "gpt-4",
+          },
+        }),
+      ).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 });

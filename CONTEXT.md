@@ -1,58 +1,58 @@
 # Platypus
 
-A multi-tenant platform for configuring AI Agents, assigning them tools, and chatting with them.
+Shared vocabulary for the Platypus codebase. Use these terms exactly when discussing the domain — don't drift into synonyms.
 
 ## Language
 
-**Organization**: Top-level tenant.
-_Avoid_: Tenant, account.
+**Organization**:
+The top-level tenant. Owns Workspaces, organization-scoped Providers, and member roles.
 
-**Workspace**: A scoped environment within an Organization. Owns Chats, Agents, MCPs, and Providers.
-_Avoid_: Project, environment.
+**Workspace**:
+A scoped environment inside an Organization that contains Chats, Agents, MCPs, Skills, and workspace-scoped Providers.
 
-**Agent**: A configured AI persona within a Workspace — system prompt, model, temperature, plus
-assignments to Tool sets, Skills, and Sub-agents.
-_Avoid_: Bot, assistant, persona.
+**Chat**:
+A persisted conversation in a Workspace. Composed of a sequence of messages and the configuration used to produce the assistant's replies.
 
-**Sub-agent**: An Agent assigned to another Agent (the parent) as a delegation target. The parent
-gets a generated `delegateTo<Name>` tool per sub-agent. Sub-agents cannot themselves have
-sub-agents (depth limit, enforced at runtime).
-_Avoid_: Child agent, helper agent.
+**Chat turn**:
+A single round of running the model: given the prior messages and a Workspace + Agent (or Provider + model) selection, produce the assistant's next streamed response. Distinct from one-shot Provider executions like metadata generation.
+_Avoid_: chat request, chat invocation, chat run.
 
-**Tool set**: A named bundle of tools, assignable to an Agent by id. Multiple tool sets compose by
-union when the Agent runs.
-_Avoid_: Tool group, plugin.
+**Agent**:
+A configurable preset that pins a Provider, model, system prompt, generation parameters, Tools, Skills, and sub-Agents. Selecting an Agent on a Chat turn replaces direct Provider/model selection.
 
-**Skill**: A named, on-demand prompt fragment listed in the System prompt by name + description
-only; full body fetched via the `loadSkill` tool when the LLM needs it.
-_Avoid_: Capability, ability, prompt.
+**Sub-Agent**:
+An Agent referenced by a parent Agent and exposed to it as a delegate Tool.
 
-**Memory**: Persistent per-User context surfaced into the System prompt and queryable via the
-`memorySearch` / `memoryGet` tools. Stored as daily summaries.
-_Avoid_: Note, recollection.
+**Provider**:
+A configured connection to an AI vendor (OpenAI, OpenRouter, Bedrock, Anthropic, Google, …). Carries credentials, base URL, the enabled `modelIds`, and a `taskModelId` for one-shot tasks. Lives at either Organization or Workspace scope.
 
-**MCP**: A Model Context Protocol integration — an external server that exposes tools to an Agent.
-MCP clients are opened per Chat turn and must be closed on completion or abort.
-_Avoid_: Plugin, extension.
+**Tool set**:
+A named bundle of Tools an Agent can be granted. Either statically registered in code or backed by an MCP server.
 
-**Provider**: A configurable AI Provider record (OpenAI / OpenRouter / Bedrock / Google /
-Anthropic / custom OpenAI-compatible) bound to a Workspace.
-_Avoid_: Model, vendor.
+**MCP**:
+A Model Context Protocol server registered in a Workspace. Resolves to a Tool set at Chat-turn time.
 
-**System prompt**: The rendered string sent as the system message at the start of a Chat turn.
-Composed from the Agent's own prompt plus contextual fragments (Workspace, User, Memories,
-Skills, Sub-agents). Built per turn — not stored.
-_Avoid_: Instructions, preamble.
+**Skill**:
+A named capability with a description, attached to an Agent. Surfaced to the model so it can request the skill's instructions on demand via the `loadSkill` Tool.
 
-**Chat turn**: One request/response cycle within a Chat — the unit of execution that resolves
-context, loads tools, opens MCP clients, renders the System prompt, streams the response, and
-cleans up.
-_Avoid_: Message, request.
+**Memory**:
+A persisted summary of prior activity, retrieved per-User per-Workspace and rendered into the system prompt when the Agent's Tool sets include the memory tool set.
+
+**Context** (User Context):
+Free-text notes a User attaches at global or per-Workspace scope, rendered into the system prompt.
 
 ## Relationships
 
 - An **Organization** has many **Workspaces**.
-- A **Workspace** has many **Chats**, **Agents**, **MCPs**, and **Providers**.
-- An **Agent** can be assigned **Tool sets**, **Skills**, and **Sub-agents** (themselves Agents).
-- A **Chat turn** uses one **Agent** and produces one rendered **System prompt**.
-- A **Sub-agent** is reachable by exactly one parent **Agent** at depth ≤ 1.
+- A **Workspace** has many **Chats**, **Agents**, **MCPs**, and **Skills**.
+- A **Chat** is produced by a sequence of **Chat turns**.
+- A **Chat turn** uses either an **Agent** or a direct **Provider** + model selection.
+- An **Agent** references one **Provider**, zero-or-more **Tool sets** (static or **MCP**-backed), zero-or-more **Skills**, and zero-or-more **Sub-Agents**.
+- A **Provider** belongs to either an **Organization** (shared) or a **Workspace** (private).
+
+## Example dialogue
+
+> **Dev:** "When the user sends a message with an **Agent** selected, what runs?"
+> **Domain expert:** "A **Chat turn**. The turn resolves the **Agent**'s **Provider** and model, loads its **Tool sets**, **Skills**, and **Sub-Agents**, renders the system prompt with any **Memories** and **Contexts**, and streams the model's reply."
+> **Dev:** "And generating a title for an existing **Chat**?"
+> **Domain expert:** "That's not a **Chat turn** — it's a one-shot **Provider** execution against the **Provider**'s `taskModelId`."

@@ -128,7 +128,12 @@ export type PrepareChatTurnInput = {
   user: { id: string; name: string };
   request: ChatSubmitDataSchema;
   messages: PlatypusUIMessage[];
-  origin: string;
+  /**
+   * Used to rewrite `storage://` URLs in messages to absolute HTTP URLs so
+   * the model can fetch them. Optional for headless callers (triggers,
+   * sub-agents) whose messages contain no file references.
+   */
+  origin?: string;
   frontendUrl?: string;
 };
 
@@ -205,7 +210,9 @@ export const prepareChatTurn = async (
 
   prepareAgentTools(tools, skills, workspaceId);
 
-  const inlinedMessages = await inlineFileUrls(messages, origin);
+  const inlinedMessages = origin
+    ? await inlineFileUrls(messages, origin)
+    : messages;
 
   let disposed = false;
   const dispose = async () => {

@@ -22,12 +22,6 @@ export type StreamOptions = {
 
 export type GenerateOptions = {
   abortSignal?: AbortSignal;
-  /**
-   * Required by `prepareChatTurn` for file-URL inlining. Headless paths
-   * (triggers, sub-agents) have no storage:// URLs to rewrite, so any
-   * placeholder works. Defaults to a non-resolvable internal URL.
-   */
-  origin?: string;
   frontendUrl?: string;
 };
 
@@ -90,7 +84,7 @@ export class AgentRunner {
   private async prepare(
     scope: WorkspaceScope,
     input: RunInput,
-    origin: string,
+    origin: string | undefined,
     frontendUrl?: string,
   ): Promise<ChatTurn> {
     return prepareChatTurn({
@@ -169,6 +163,11 @@ export class AgentRunner {
         turn.resolved.agentId ? { agentId: turn.resolved.agentId } : undefined,
       onError: (error) => formatStreamError(error),
       onFinish: async ({ messages: finalMessages }) => {
+        // Errors here are logged rather than rethrown: the HTTP response
+        // body has already been streamed to the client by this point, so
+        // throwing can't surface a failure to the caller — only a stack
+        // trace in the AI SDK's stream pipeline. `generate()` is awaited
+        // by callers, so it propagates sink errors instead.
         try {
           await turn.dispose();
           await sink.onFinish({
@@ -196,13 +195,13 @@ export class AgentRunner {
   }): Promise<GenerateResult> {
     const { scope, input, sink } = params;
     const options = params.options ?? {};
-    const origin = options.origin ?? "http://internal.run";
 
     await sink.onStart({ runId: input.runId });
 
     let turn: ChatTurn;
     try {
-      turn = await this.prepare(scope, input, origin, options.frontendUrl);
+      // No `origin`: headless callers don't have file URLs to inline.
+      turn = await this.prepare(scope, input, undefined, options.frontendUrl);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error(

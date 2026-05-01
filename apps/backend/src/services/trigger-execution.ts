@@ -109,9 +109,8 @@ export const executeTrigger = async (
 
   const input: RunInput = {
     runId,
-    source: { kind: "agent", agentId },
+    request: { agentId, search: trigger.search ?? undefined },
     messages,
-    overrides: { search: trigger.search ?? undefined },
   };
 
   const sink = new TriggerSink({

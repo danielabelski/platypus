@@ -30,7 +30,7 @@ import { rewriteStorageUrls, deleteFiles } from "../storage/utils.ts";
 import { getOrigin } from "../utils/get-origin.ts";
 import { agentRunner } from "../runs/agent-runner.ts";
 import { ChatSink } from "../runs/sinks/chat-sink.ts";
-import type { RunInput, RunInputSource } from "../runs/types.ts";
+import type { RunInput } from "../runs/types.ts";
 
 // --- Routes ---
 
@@ -142,28 +142,10 @@ chat.post(
     const scope = c.get("workspaceScope")!;
     const data = c.req.valid("json");
 
-    const source: RunInputSource = data.agentId
-      ? { kind: "agent", agentId: data.agentId }
-      : {
-          kind: "adhoc",
-          providerId: data.providerId!,
-          modelId: data.modelId!,
-          systemPrompt: data.systemPrompt,
-        };
-
     const input: RunInput = {
       runId: data.id,
-      source,
+      request: data,
       messages: data.messages ?? [],
-      overrides: {
-        temperature: data.temperature,
-        topP: data.topP,
-        topK: data.topK,
-        seed: data.seed,
-        presencePenalty: data.presencePenalty,
-        frequencyPenalty: data.frequencyPenalty,
-        search: data.search,
-      },
     };
 
     const sink = new ChatSink({

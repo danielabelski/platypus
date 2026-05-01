@@ -1,5 +1,5 @@
 import type { PlatypusUIMessage } from "../types.ts";
-import type { ChatTurn } from "../services/chat-execution.ts";
+import type { ChatSubmitData, ChatTurn } from "../services/chat-execution.ts";
 
 export type RunId = string;
 
@@ -13,38 +13,14 @@ export type RunStats = {
 };
 
 /**
- * Identifies the source of model + agent configuration for a run.
- *
- * - `agent`: load agent record by ID; tools, model, system prompt and
- *   generation defaults derive from the agent.
- * - `adhoc`: caller supplies provider + model directly with no agent. No
- *   tools or skills are loaded; system prompt and generation come entirely
- *   from request overrides.
+ * Inputs for a single run. `request` is the same shape `prepareChatTurn`
+ * expects: agent or direct provider/model selection, plus optional
+ * generation overrides (temperature, topP, seed, etc.) and search flag.
  */
-export type RunInputSource =
-  | { kind: "agent"; agentId: string }
-  | {
-      kind: "adhoc";
-      providerId: string;
-      modelId: string;
-      systemPrompt?: string;
-    };
-
-export type RunInputOverrides = {
-  temperature?: number;
-  topP?: number;
-  topK?: number;
-  seed?: number;
-  presencePenalty?: number;
-  frequencyPenalty?: number;
-  search?: boolean;
-};
-
 export type RunInput = {
   runId: RunId;
-  source: RunInputSource;
+  request: ChatSubmitData;
   messages: PlatypusUIMessage[];
-  overrides?: RunInputOverrides;
 };
 
 /**

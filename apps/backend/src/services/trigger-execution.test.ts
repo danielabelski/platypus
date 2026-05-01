@@ -95,7 +95,7 @@ describe("trigger-execution", () => {
       expect(args.scope.principal.triggerId).toBe("trigger-1");
       expect(args.scope.principal.onBehalfOfUserId).toBe("user-1");
       expect(args.input.runId).toBe("test-id");
-      expect(args.input.source).toEqual({ kind: "agent", agentId: "agent-1" });
+      expect(args.input.request.agentId).toBe("agent-1");
       expect(args.input.messages).toHaveLength(1);
       expect(args.input.messages[0].parts[0].text).toBe("Do something");
     });
@@ -140,7 +140,7 @@ describe("trigger-execution", () => {
       await executeTrigger(trigger as any);
 
       const args = mockGenerate.mock.calls[0][0];
-      expect(args.input.overrides.search).toBe(true);
+      expect(args.input.request.search).toBe(true);
     });
 
     it("throws when the workspace is not found, before invoking the runner", async () => {

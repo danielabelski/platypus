@@ -8,11 +8,7 @@ import {
   streamText,
   type LanguageModel,
 } from "ai";
-import {
-  prepareChatTurn,
-  type ChatSubmitData,
-  type ChatTurn,
-} from "../services/chat-execution.ts";
+import { prepareChatTurn, type ChatTurn } from "../services/chat-execution.ts";
 import { logger } from "../logger.ts";
 import { actorUserId, type WorkspaceScope } from "../scope.ts";
 import type { PlatypusUIMessage } from "../types.ts";
@@ -38,23 +34,6 @@ export type GenerateOptions = {
 export type GenerateResult = {
   text: string;
   stats: RunStats;
-};
-
-/**
- * Translates a discriminated `RunInput.source` and overrides into the flat
- * `ChatSubmitData` shape consumed by `prepareChatTurn`.
- */
-const toChatSubmitData = (input: RunInput): ChatSubmitData => {
-  const overrides = input.overrides ?? {};
-  if (input.source.kind === "agent") {
-    return { agentId: input.source.agentId, ...overrides };
-  }
-  return {
-    providerId: input.source.providerId,
-    modelId: input.source.modelId,
-    systemPrompt: input.source.systemPrompt,
-    ...overrides,
-  };
 };
 
 /**
@@ -118,7 +97,7 @@ export class AgentRunner {
       orgId: scope.orgId,
       workspaceId: scope.workspaceId,
       user: userFromScope(scope),
-      request: toChatSubmitData(input),
+      request: input.request,
       messages: input.messages,
       origin,
       frontendUrl,

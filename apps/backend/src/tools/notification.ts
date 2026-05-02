@@ -46,6 +46,7 @@ export function createNotificationTools(
       const { nanoid } = await import("nanoid");
       const id = nanoid();
       const now = new Date();
+      const normalizedBody = body.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
 
       const record = await db
         .insert(notificationTable)
@@ -54,7 +55,7 @@ export function createNotificationTools(
           workspaceId,
           agentId,
           title: title ?? null,
-          body,
+          body: normalizedBody,
           createdAt: now,
           updatedAt: now,
         })
@@ -120,7 +121,8 @@ export function createNotificationTools(
         updatedAt: new Date(),
       };
       if (title !== undefined) updateData.title = title;
-      if (body !== undefined) updateData.body = body;
+      if (body !== undefined)
+        updateData.body = body.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
 
       const record = await db
         .update(notificationTable)

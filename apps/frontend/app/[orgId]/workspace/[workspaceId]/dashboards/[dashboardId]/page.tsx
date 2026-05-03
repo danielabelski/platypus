@@ -867,7 +867,7 @@ const DashboardPage = ({
                     {/* Widget header */}
                     <div
                       className={cn(
-                        "widget-drag-handle flex items-center justify-between px-3 pt-1.5 pb-0.5 bg-muted/30 shrink-0",
+                        "widget-drag-handle flex items-center justify-between px-3 pt-1.5 pb-0.5 shrink-0",
                         editMode && "cursor-grab active:cursor-grabbing",
                       )}
                     >

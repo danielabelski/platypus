@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { useBackendUrl } from "@/app/client-context";
 import { useAuth } from "@/components/auth-provider";
 import { AgentAvatar } from "@/components/agent-avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const AgentForm = ({
   classNames,
@@ -410,7 +411,44 @@ const AgentForm = ({
   };
 
   if (providersLoading || agentLoading) {
-    return <div className={classNames}>Loading...</div>;
+    return (
+      <div className={classNames}>
+        <div className="flex flex-col items-center mb-6">
+          <Skeleton className="w-20 h-20 rounded-2xl" />
+          <Skeleton className="h-4 w-16 mt-2" />
+        </div>
+        <div className="space-y-6 mb-6">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-9 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-9 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-9 w-full" />
+          </div>
+          <div className="space-y-2 w-1/2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-9 w-full" />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-20" />
+          {agentId && <Skeleton className="h-9 w-24" />}
+        </div>
+      </div>
+    );
   }
 
   return (

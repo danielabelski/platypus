@@ -16,6 +16,7 @@ import {
   KanbanSquare,
   Zap,
   Radio,
+  LayoutDashboard,
 } from "lucide-react";
 
 import {
@@ -167,6 +168,19 @@ export function CommandMenu({ orgId, workspaceId }: CommandMenuProps) {
           >
             <KanbanSquare />
             <span>New Board</span>
+          </CommandItem>
+          <CommandItem
+            className="cursor-pointer"
+            onSelect={() => {
+              runCommand(() =>
+                router.push(
+                  `/${orgId}/workspace/${workspaceId}/dashboards/create`,
+                ),
+              );
+            }}
+          >
+            <LayoutDashboard />
+            <span>New Dashboard</span>
           </CommandItem>
           <CommandItem
             className="cursor-pointer"

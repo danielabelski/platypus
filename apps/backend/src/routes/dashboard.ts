@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { sValidator } from "@hono/standard-validator";
 import { nanoid } from "nanoid";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { db } from "../index.ts";
 import {
   dashboard as dashboardTable,
@@ -302,9 +302,34 @@ dashboard.put(
     if (existing[0].type !== body.type) {
       return c.json({ error: "Widget type mismatch" }, 400);
     }
+    if (body.title) {
+      const conflict = await db
+        .select({ id: widgetTable.id })
+        .from(widgetTable)
+        .where(
+          and(
+            eq(widgetTable.dashboardId, dashboardId),
+            eq(widgetTable.title, body.title),
+            ne(widgetTable.id, widgetId),
+          ),
+        )
+        .limit(1);
+      if (conflict.length) {
+        return c.json(
+          {
+            error: "A widget with that title already exists on this dashboard",
+          },
+          409,
+        );
+      }
+    }
     const updated = await db
       .update(widgetTable)
-      .set({ data: body.data, updatedAt: new Date() })
+      .set({
+        data: body.data,
+        ...(body.title && { title: body.title }),
+        updatedAt: new Date(),
+      })
       .where(eq(widgetTable.id, widgetId))
       .returning();
     return c.json(updated[0]);

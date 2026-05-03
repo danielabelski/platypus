@@ -73,16 +73,21 @@ function MetricWidget({
 }: {
   widget: Widget;
   editing: boolean;
-  onSave: (data: object) => void;
+  onSave: (data: object, title: string) => void;
 }) {
   const data = widget.data as
     | { value: number; label: string; unit?: string; change?: string }
     | null
     | undefined;
+  const [title, setTitle] = useState(widget.title);
   const [value, setValue] = useState(String(data?.value ?? ""));
   const [label, setLabel] = useState(data?.label ?? "");
   const [unit, setUnit] = useState(data?.unit ?? "");
   const [change, setChange] = useState(data?.change ?? "");
+
+  useEffect(() => {
+    setTitle(widget.title);
+  }, [widget.title]);
 
   useEffect(() => {
     setValue(String(data?.value ?? ""));
@@ -94,6 +99,14 @@ function MetricWidget({
   if (editing) {
     return (
       <div className="flex flex-col gap-2 p-3 h-full overflow-auto">
+        <div className="space-y-1">
+          <Label className="text-xs">Name</Label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="h-7 text-sm"
+          />
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label className="text-xs">Value</Label>
@@ -135,12 +148,15 @@ function MetricWidget({
           size="sm"
           className="mt-auto"
           onClick={() =>
-            onSave({
-              value: Number(value),
-              label,
-              ...(unit && { unit }),
-              ...(change && { change }),
-            })
+            onSave(
+              {
+                value: Number(value),
+                label,
+                ...(unit && { unit }),
+                ...(change && { change }),
+              },
+              title,
+            )
           }
         >
           <Check className="h-3 w-3" /> Save
@@ -159,7 +175,14 @@ function MetricWidget({
           <div className="font-bold text-[60cqh] leading-none">
             {data.value}
             {data.unit && (
-              <span className="font-normal ml-[0.3em] text-[36cqh]">
+              <span
+                className={cn(
+                  "font-normal",
+                  data.unit === "°"
+                    ? "ml-[0.05em] text-[60cqh] align-top"
+                    : "ml-[0.3em] text-[36cqh]",
+                )}
+              >
                 {data.unit}
               </span>
             )}
@@ -185,10 +208,15 @@ function TextWidget({
 }: {
   widget: Widget;
   editing: boolean;
-  onSave: (data: object) => void;
+  onSave: (data: object, title: string) => void;
 }) {
   const data = widget.data as { content: string } | null | undefined;
+  const [title, setTitle] = useState(widget.title);
   const [content, setContent] = useState(data?.content ?? "");
+
+  useEffect(() => {
+    setTitle(widget.title);
+  }, [widget.title]);
 
   useEffect(() => {
     setContent(data?.content ?? "");
@@ -197,13 +225,21 @@ function TextWidget({
   if (editing) {
     return (
       <div className="flex flex-col gap-2 p-3 h-full">
+        <div className="space-y-1">
+          <Label className="text-xs">Name</Label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="h-7 text-sm"
+          />
+        </div>
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Markdown content…"
           className="flex-1 min-h-0 resize-none text-sm font-mono"
         />
-        <Button size="sm" onClick={() => onSave({ content })}>
+        <Button size="sm" onClick={() => onSave({ content }, title)}>
           <Check className="h-3 w-3" /> Save
         </Button>
       </div>
@@ -230,10 +266,15 @@ function ImageWidget({
 }: {
   widget: Widget;
   editing: boolean;
-  onSave: (data: object) => void;
+  onSave: (data: object, title: string) => void;
 }) {
   const data = widget.data as { url: string } | null | undefined;
+  const [title, setTitle] = useState(widget.title);
   const [url, setUrl] = useState(data?.url ?? "");
+
+  useEffect(() => {
+    setTitle(widget.title);
+  }, [widget.title]);
 
   useEffect(() => {
     setUrl(data?.url ?? "");
@@ -243,6 +284,14 @@ function ImageWidget({
     return (
       <div className="flex flex-col gap-2 p-3 h-full">
         <div className="space-y-1">
+          <Label className="text-xs">Name</Label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="h-7 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
           <Label className="text-xs">Image URL</Label>
           <Input
             value={url}
@@ -251,7 +300,11 @@ function ImageWidget({
             className="h-7 text-sm"
           />
         </div>
-        <Button size="sm" className="mt-auto" onClick={() => onSave({ url })}>
+        <Button
+          size="sm"
+          className="mt-auto"
+          onClick={() => onSave({ url }, title)}
+        >
           <Check className="h-3 w-3" /> Save
         </Button>
       </div>
@@ -400,6 +453,9 @@ const DashboardPage = ({
     setPendingDeletions(new Set());
     setPendingAdditions(new Set());
     setEditMode(true);
+    if (widgets.length === 0) {
+      setAddWidgetOpen(true);
+    }
   };
 
   // Cancel: undo pending additions and discard all other staged changes
@@ -551,7 +607,11 @@ const DashboardPage = ({
   };
 
   // Save widget data inline
-  const handleSaveWidgetData = async (widget: Widget, data: object) => {
+  const handleSaveWidgetData = async (
+    widget: Widget,
+    data: object,
+    title: string,
+  ) => {
     if (!backendUrl) return;
     await fetch(
       joinUrl(
@@ -562,7 +622,7 @@ const DashboardPage = ({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ type: widget.type, data }),
+        body: JSON.stringify({ type: widget.type, data, title }),
       },
     );
     await mutateWidgets();
@@ -806,7 +866,7 @@ const DashboardPage = ({
                     {/* Widget header */}
                     <div
                       className={cn(
-                        "widget-drag-handle flex items-center justify-between px-3 py-1.5 border-b bg-muted/30 shrink-0",
+                        "widget-drag-handle flex items-center justify-between px-3 pt-1.5 pb-0.5 bg-muted/30 shrink-0",
                         editMode && "cursor-grab active:cursor-grabbing",
                       )}
                     >
@@ -906,8 +966,8 @@ const DashboardPage = ({
                           <WidgetComponent
                             widget={widget}
                             editing={isEditing}
-                            onSave={(data) =>
-                              handleSaveWidgetData(widget, data)
+                            onSave={(data, title) =>
+                              handleSaveWidgetData(widget, data, title)
                             }
                           />
                         ) : null;

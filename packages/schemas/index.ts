@@ -1083,9 +1083,21 @@ export const widgetCreateSchema = z.object({
 });
 
 export const widgetUpdateDataSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("metric"), data: metricWidgetDataSchema }),
-  z.object({ type: z.literal("text"), data: textWidgetDataSchema }),
-  z.object({ type: z.literal("image"), data: imageWidgetDataSchema }),
+  z.object({
+    type: z.literal("metric"),
+    title: z.string().min(1).max(200).optional(),
+    data: metricWidgetDataSchema,
+  }),
+  z.object({
+    type: z.literal("text"),
+    title: z.string().min(1).max(200).optional(),
+    data: textWidgetDataSchema,
+  }),
+  z.object({
+    type: z.literal("image"),
+    title: z.string().min(1).max(200).optional(),
+    data: imageWidgetDataSchema,
+  }),
 ]);
 
 export const dashboardSchema = z.object({

@@ -1,6 +1,8 @@
 "use client";
 
 import { use, useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import useSWR from "swr";
@@ -46,6 +48,8 @@ import {
   ChevronDown,
   ImageIcon,
   InfoIcon,
+  Maximize2,
+  Minimize2,
   Pencil,
   Plus,
   Settings,
@@ -385,6 +389,7 @@ const DashboardPage = ({
   const [editMode, setEditMode] = useState(false);
   const [layoutTab, setLayoutTab] = useState<"desktop" | "mobile">("desktop");
   const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
+  const [expandedWidgetId, setExpandedWidgetId] = useState<string | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
   const [pendingDeletions, setPendingDeletions] = useState<Set<string>>(
     new Set(),
@@ -597,6 +602,14 @@ const DashboardPage = ({
     setNewWidgetTitle("");
     setNewWidgetType("metric");
   };
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpandedWidgetId(null);
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, []);
 
   // Stage a widget deletion — only committed to the API when the user clicks Done
   const handleDeleteWidget = (widgetId: string) => {
@@ -886,6 +899,15 @@ const DashboardPage = ({
                         </span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
+                        {widget.type === "text" && !editMode && (
+                          <button
+                            className="hidden md:flex items-center justify-center h-6 w-6 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={() => setExpandedWidgetId(widget.id)}
+                          >
+                            <Maximize2 className="h-3 w-3" />
+                          </button>
+                        )}
                         <Tooltip delayDuration={500}>
                           <TooltipTrigger
                             asChild
@@ -957,7 +979,12 @@ const DashboardPage = ({
                     </div>
 
                     {/* Widget body */}
-                    <div className="flex-1 min-h-0">
+                    <div
+                      className={cn(
+                        "flex-1 min-h-0",
+                        expandedWidgetId === widget.id && "invisible",
+                      )}
+                    >
                       {(() => {
                         const WidgetComponent =
                           widgetTypeComponent[
@@ -1033,6 +1060,71 @@ const DashboardPage = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Markdown widget expand overlay */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {expandedWidgetId !== null &&
+              (() => {
+                const expandedWidget = widgets.find(
+                  (w) => w.id === expandedWidgetId,
+                );
+                if (!expandedWidget) return null;
+                const expandedData = expandedWidget.data as
+                  | { content: string }
+                  | null
+                  | undefined;
+                return (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+                      onClick={() => setExpandedWidgetId(null)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="relative w-full max-w-5xl h-full max-h-[80vh] bg-background rounded-lg border shadow-2xl flex flex-col p-4"
+                    >
+                      <div className="flex justify-between items-center mb-4 shrink-0">
+                        <span className="text-sm font-medium">
+                          {expandedWidget.title}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 cursor-pointer text-muted-foreground"
+                          onClick={() => setExpandedWidgetId(null)}
+                        >
+                          <Minimize2 className="size-3.5" />
+                          <span className="sr-only">Collapse</span>
+                        </Button>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-auto prose prose-sm dark:prose-invert max-w-none">
+                        {expandedData?.content ? (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {expandedData.content}
+                          </ReactMarkdown>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">
+                            No content yet
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  </div>
+                );
+              })()}
+          </AnimatePresence>,
+          document.body,
+        )}
     </div>
   );
 };

@@ -31,6 +31,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -69,8 +77,6 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString();
 }
 
-import { ScrollArea } from "@/components/ui/scroll-area";
-
 function AssigneePicker({
   user,
   agents,
@@ -100,18 +106,11 @@ function AssigneePicker({
     }
   }
 
-  const [open, setOpen] = useState(false);
-
-  const handleSelect = (type: "user" | "agent", id: string) => {
-    onToggle(type, id);
-    setOpen(false);
-  };
-
   return (
     <div>
       <p className="text-xs font-medium text-muted-foreground mb-2">Assignee</p>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
             className={cn(
@@ -148,64 +147,45 @@ function AssigneePicker({
               </>
             )}
           </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-56 p-0" align="start">
-          <ScrollArea className="max-h-64">
-            <div className="p-1">
-              {user && (
-                <>
-                  <p className="text-xs font-medium text-muted-foreground px-2 py-1.5">
-                    Users
-                  </p>
-                  <button
-                    className={cn(
-                      "flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm hover:bg-muted transition-colors",
-                    )}
-                    onClick={() => handleSelect("user", user.id)}
-                  >
-                    <Avatar className="size-5">
-                      {user.image && (
-                        <AvatarImage src={user.image} alt={user.name} />
-                      )}
-                      <AvatarFallback>
-                        <User className="size-3 text-muted-foreground" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="truncate flex-1 text-left">
-                      {user.name}
-                    </span>
-                    {isAssigned("user", user.id) && (
-                      <Check className="size-3.5 text-primary shrink-0" />
-                    )}
-                  </button>
-                </>
-              )}
-              {agents && agents.length > 0 && (
-                <p className="text-xs font-medium text-muted-foreground px-2 py-1.5">
-                  Agents
-                </p>
-              )}
-              {agents?.map((agent) => (
-                <button
-                  key={agent.id}
-                  className={cn(
-                    "flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm hover:bg-muted transition-colors",
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-56" align="start">
+          {user && (
+            <>
+              <DropdownMenuLabel>Users</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => onToggle("user", user.id)}>
+                <Avatar className="size-5">
+                  {user.image && (
+                    <AvatarImage src={user.image} alt={user.name} />
                   )}
-                  onClick={() => handleSelect("agent", agent.id)}
-                >
-                  <AgentAvatar agent={agent} className="size-5" />
-                  <span className="truncate flex-1 text-left">
-                    {agent.name}
-                  </span>
-                  {isAssigned("agent", agent.id) && (
-                    <Check className="size-3.5 text-primary shrink-0" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </ScrollArea>
-        </PopoverContent>
-      </Popover>
+                  <AvatarFallback>
+                    <User className="size-3 text-muted-foreground" />
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate flex-1">{user.name}</span>
+                {isAssigned("user", user.id) && (
+                  <Check className="size-3.5 shrink-0" />
+                )}
+              </DropdownMenuItem>
+            </>
+          )}
+          {user && agents && agents.length > 0 && <DropdownMenuSeparator />}
+          {agents && agents.length > 0 && (
+            <DropdownMenuLabel>Agents</DropdownMenuLabel>
+          )}
+          {agents?.map((agent) => (
+            <DropdownMenuItem
+              key={agent.id}
+              onSelect={() => onToggle("agent", agent.id)}
+            >
+              <AgentAvatar agent={agent} className="size-5" />
+              <span className="truncate flex-1">{agent.name}</span>
+              {isAssigned("agent", agent.id) && (
+                <Check className="size-3.5 shrink-0" />
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

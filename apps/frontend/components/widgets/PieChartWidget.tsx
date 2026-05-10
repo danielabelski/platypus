@@ -15,7 +15,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Check, Plus, X } from "lucide-react";
+import { genId } from "./chart-utils";
 import { CHART_COLORS } from "./chart-colors";
+
+interface SegmentEntry {
+  id: string;
+  label: string;
+  value: number;
+}
+
+function toSegmentEntries(
+  segments: PieChartWidgetData["segments"] | undefined,
+): SegmentEntry[] {
+  return (segments ?? [{ label: "", value: 0 }]).map((s) => ({
+    id: genId(),
+    ...s,
+  }));
+}
 
 export function PieChartWidget({
   widget,
@@ -23,8 +39,8 @@ export function PieChartWidget({
   onSave,
 }: {
   widget: Widget;
-  editing?: boolean;
-  onSave?: (data: object, title: string) => void;
+  editing: boolean;
+  onSave: (data: object, title: string) => void;
 }) {
   const data = widget.data as PieChartWidgetData | null | undefined;
   const [title, setTitle] = useState(widget.title);
@@ -32,8 +48,8 @@ export function PieChartWidget({
   const [centerSubLabel, setCenterSubLabel] = useState(
     data?.centerSubLabel ?? "",
   );
-  const [segments, setSegments] = useState(
-    data?.segments ?? [{ label: "", value: 0 }],
+  const [segments, setSegments] = useState<SegmentEntry[]>(() =>
+    toSegmentEntries(data?.segments),
   );
 
   useEffect(() => {
@@ -43,27 +59,17 @@ export function PieChartWidget({
   useEffect(() => {
     setCenterLabel(data?.centerLabel ?? "");
     setCenterSubLabel(data?.centerSubLabel ?? "");
-    setSegments(data?.segments ?? [{ label: "", value: 0 }]);
-  }, [data?.centerLabel, data?.centerSubLabel, data?.segments]);
+    setSegments(toSegmentEntries(data?.segments));
+    // updatedAt tracks server-side changes; array refs are not stable across renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [String(widget.updatedAt)]);
 
   if (editing) {
     const handleAddSegment = () =>
-      setSegments((prev) => [...prev, { label: "", value: 0 }]);
+      setSegments((prev) => [...prev, { id: genId(), label: "", value: 0 }]);
 
-    const handleRemoveSegment = (i: number) =>
-      setSegments((prev) => prev.filter((_, idx) => idx !== i));
-
-    const handleSave = () => {
-      if (!onSave) return;
-      onSave(
-        {
-          ...(centerLabel ? { centerLabel } : {}),
-          ...(centerSubLabel ? { centerSubLabel } : {}),
-          segments,
-        },
-        title,
-      );
-    };
+    const handleRemoveSegment = (id: string) =>
+      setSegments((prev) => prev.filter((s) => s.id !== id));
 
     return (
       <div className="flex flex-col gap-2 p-3 h-full overflow-auto">
@@ -108,7 +114,7 @@ export function PieChartWidget({
             </button>
           </div>
           {segments.map((s, i) => (
-            <div key={i} className="flex items-center gap-1.5">
+            <div key={s.id} className="flex items-center gap-1.5">
               <div
                 className="h-2 w-2 shrink-0 rounded-full"
                 style={{
@@ -119,8 +125,10 @@ export function PieChartWidget({
                 value={s.label}
                 onChange={(e) =>
                   setSegments((prev) =>
-                    prev.map((item, idx) =>
-                      idx === i ? { ...item, label: e.target.value } : item,
+                    prev.map((item) =>
+                      item.id === s.id
+                        ? { ...item, label: e.target.value }
+                        : item,
                     ),
                   )
                 }
@@ -132,8 +140,8 @@ export function PieChartWidget({
                 value={s.value}
                 onChange={(e) =>
                   setSegments((prev) =>
-                    prev.map((item, idx) =>
-                      idx === i
+                    prev.map((item) =>
+                      item.id === s.id
                         ? { ...item, value: Number(e.target.value) }
                         : item,
                     ),
@@ -144,7 +152,7 @@ export function PieChartWidget({
               />
               {segments.length > 1 && (
                 <button
-                  onClick={() => handleRemoveSegment(i)}
+                  onClick={() => handleRemoveSegment(s.id)}
                   className="text-muted-foreground hover:text-destructive shrink-0"
                 >
                   <X className="h-3 w-3" />
@@ -153,7 +161,23 @@ export function PieChartWidget({
             </div>
           ))}
         </div>
-        <Button size="sm" className="mt-auto" onClick={handleSave}>
+        <Button
+          size="sm"
+          className="mt-auto"
+          onClick={() =>
+            onSave(
+              {
+                ...(centerLabel ? { centerLabel } : {}),
+                ...(centerSubLabel ? { centerSubLabel } : {}),
+                segments: segments.map(({ label, value }) => ({
+                  label,
+                  value,
+                })),
+              },
+              title,
+            )
+          }
+        >
           <Check className="h-3 w-3" /> Save
         </Button>
       </div>

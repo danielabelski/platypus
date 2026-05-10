@@ -1028,7 +1028,13 @@ export const rglLayoutItemSchema = z.object({
 
 export type RglLayoutItem = z.infer<typeof rglLayoutItemSchema>;
 
-export const widgetTypeSchema = z.enum(["metric", "text", "image", "weather"]);
+export const widgetTypeSchema = z.enum([
+  "metric",
+  "text",
+  "image",
+  "weather",
+  "line-chart",
+]);
 
 export type WidgetType = z.infer<typeof widgetTypeSchema>;
 
@@ -1082,11 +1088,35 @@ export const weatherWidgetDataSchema = z.object({
 
 export type WeatherWidgetData = z.infer<typeof weatherWidgetDataSchema>;
 
+export const lineChartSeriesSchema = z.object({
+  label: z.string().describe("Series name shown in the legend"),
+  values: z
+    .array(z.number().nullable())
+    .describe("One value per category; null renders as a gap in the line"),
+});
+
+export const lineChartWidgetDataSchema = z.object({
+  yAxisLabel: z
+    .string()
+    .optional()
+    .describe('Optional Y-axis label, e.g. "Revenue ($)"'),
+  categories: z
+    .array(z.string())
+    .describe("X-axis category labels, one per data point"),
+  series: z
+    .array(lineChartSeriesSchema)
+    .min(1)
+    .describe("One or more data series; each becomes a line on the chart"),
+});
+
+export type LineChartWidgetData = z.infer<typeof lineChartWidgetDataSchema>;
+
 export const widgetDataSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("metric"), data: metricWidgetDataSchema }),
   z.object({ type: z.literal("text"), data: textWidgetDataSchema }),
   z.object({ type: z.literal("image"), data: imageWidgetDataSchema }),
   z.object({ type: z.literal("weather"), data: weatherWidgetDataSchema }),
+  z.object({ type: z.literal("line-chart"), data: lineChartWidgetDataSchema }),
 ]);
 
 export const widgetSchema = z.object({
@@ -1100,6 +1130,7 @@ export const widgetSchema = z.object({
       textWidgetDataSchema,
       imageWidgetDataSchema,
       weatherWidgetDataSchema,
+      lineChartWidgetDataSchema,
     ])
     .nullable(),
   createdAt: z.date(),
@@ -1133,6 +1164,11 @@ export const widgetUpdateDataSchema = z.discriminatedUnion("type", [
     type: z.literal("weather"),
     title: z.string().min(1).max(200).optional(),
     data: weatherWidgetDataSchema,
+  }),
+  z.object({
+    type: z.literal("line-chart"),
+    title: z.string().min(1).max(200).optional(),
+    data: lineChartWidgetDataSchema,
   }),
 ]);
 

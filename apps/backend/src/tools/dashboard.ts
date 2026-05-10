@@ -11,6 +11,7 @@ import {
   textWidgetDataSchema,
   imageWidgetDataSchema,
   weatherWidgetDataSchema,
+  lineChartWidgetDataSchema,
 } from "@platypus/schemas";
 
 export function createDashboardTools(
@@ -102,7 +103,7 @@ export function createDashboardTools(
       dashboardId: z.string().describe("The ID of the dashboard"),
       widgetId: z.string().describe("The ID of the widget to update"),
       type: z
-        .enum(["metric", "text", "image", "weather"])
+        .enum(["metric", "text", "image", "weather", "line-chart"])
         .describe("The widget type — must match the widget's existing type"),
       data: z
         .union([
@@ -110,6 +111,7 @@ export function createDashboardTools(
           textWidgetDataSchema,
           imageWidgetDataSchema,
           weatherWidgetDataSchema,
+          lineChartWidgetDataSchema,
         ])
         .describe("The new data for the widget — must match the widget's type"),
     }),

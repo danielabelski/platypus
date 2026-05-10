@@ -1035,6 +1035,7 @@ export const widgetTypeSchema = z.enum([
   "weather",
   "line-chart",
   "pie-chart",
+  "bar-chart",
 ]);
 
 export type WidgetType = z.infer<typeof widgetTypeSchema>;
@@ -1138,6 +1139,29 @@ export const pieChartWidgetDataSchema = z.object({
 
 export type PieChartWidgetData = z.infer<typeof pieChartWidgetDataSchema>;
 
+export const barChartSeriesSchema = z.object({
+  label: z.string().describe("Series name shown in the legend"),
+  values: z
+    .array(z.number().nullable())
+    .describe("One value per category; null renders as a gap in the chart"),
+});
+
+export const barChartWidgetDataSchema = z.object({
+  yAxisLabel: z
+    .string()
+    .optional()
+    .describe('Optional Y-axis label, e.g. "Revenue ($)"'),
+  categories: z
+    .array(z.string())
+    .describe("X-axis category labels, one per group of bars"),
+  series: z
+    .array(barChartSeriesSchema)
+    .min(1)
+    .describe("One or more data series; each becomes a set of bars"),
+});
+
+export type BarChartWidgetData = z.infer<typeof barChartWidgetDataSchema>;
+
 export const widgetDataSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("metric"), data: metricWidgetDataSchema }),
   z.object({ type: z.literal("text"), data: textWidgetDataSchema }),
@@ -1145,6 +1169,7 @@ export const widgetDataSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("weather"), data: weatherWidgetDataSchema }),
   z.object({ type: z.literal("line-chart"), data: lineChartWidgetDataSchema }),
   z.object({ type: z.literal("pie-chart"), data: pieChartWidgetDataSchema }),
+  z.object({ type: z.literal("bar-chart"), data: barChartWidgetDataSchema }),
 ]);
 
 export const widgetSchema = z.object({
@@ -1160,6 +1185,7 @@ export const widgetSchema = z.object({
       weatherWidgetDataSchema,
       lineChartWidgetDataSchema,
       pieChartWidgetDataSchema,
+      barChartWidgetDataSchema,
     ])
     .nullable(),
   createdAt: z.date(),
@@ -1203,6 +1229,11 @@ export const widgetUpdateDataSchema = z.discriminatedUnion("type", [
     type: z.literal("pie-chart"),
     title: z.string().min(1).max(200).optional(),
     data: pieChartWidgetDataSchema,
+  }),
+  z.object({
+    type: z.literal("bar-chart"),
+    title: z.string().min(1).max(200).optional(),
+    data: barChartWidgetDataSchema,
   }),
 ]);
 

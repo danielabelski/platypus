@@ -651,7 +651,13 @@ export const widget = pgTable(
     type: t
       .text("type")
       .$type<
-        "metric" | "text" | "image" | "weather" | "line-chart" | "pie-chart"
+        | "metric"
+        | "text"
+        | "image"
+        | "weather"
+        | "line-chart"
+        | "pie-chart"
+        | "bar-chart"
       >()
       .notNull(),
     title: t.text("title").notNull(),

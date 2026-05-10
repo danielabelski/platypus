@@ -206,6 +206,7 @@ export function PieChartWidget({
                     y={cy}
                     textAnchor="middle"
                     dominantBaseline="middle"
+                    fill="var(--foreground)"
                   >
                     {data.centerLabel && (
                       <tspan

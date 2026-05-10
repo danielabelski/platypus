@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
-import type { Widget, LineChartWidgetData } from "@platypus/schemas";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import type { Widget, BarChartWidgetData } from "@platypus/schemas";
 import {
   ChartContainer,
   ChartTooltip,
@@ -30,7 +30,7 @@ function textToSeriesValues(text: string): (number | null)[] {
   });
 }
 
-export function LineChartWidget({
+export function BarChartWidget({
   widget,
   editing,
   onSave,
@@ -39,7 +39,7 @@ export function LineChartWidget({
   editing?: boolean;
   onSave?: (data: object, title: string) => void;
 }) {
-  const data = widget.data as LineChartWidgetData | null | undefined;
+  const data = widget.data as BarChartWidgetData | null | undefined;
   const [title, setTitle] = useState(widget.title);
   const [yAxisLabel, setYAxisLabel] = useState(data?.yAxisLabel ?? "");
   const [categoriesText, setCategoriesText] = useState(
@@ -204,7 +204,7 @@ export function LineChartWidget({
       config={chartConfig}
       className="h-full w-full aspect-auto pl-4 pr-2 pt-2 pb-1"
     >
-      <LineChart
+      <BarChart
         data={chartData}
         accessibilityLayer
         margin={{ top: 4, right: 12, left: 0, bottom: 16 }}
@@ -225,7 +225,7 @@ export function LineChartWidget({
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          width={data.yAxisLabel ? 56 : 40}
+          width={data.yAxisLabel ? 72 : 40}
           label={
             data.yAxisLabel
               ? {
@@ -252,20 +252,20 @@ export function LineChartWidget({
               : undefined
           }
         />
-        <ChartTooltip content={<ChartTooltipContent />} />
+        <ChartTooltip
+          cursor={{ fill: "transparent" }}
+          content={<ChartTooltipContent />}
+        />
         {showLegend && <ChartLegend content={<ChartLegendContent />} />}
         {data.series.map((s, i) => (
-          <Line
+          <Bar
             key={s.label}
             dataKey={s.label}
-            type="monotone"
-            stroke={CHART_COLORS[i % CHART_COLORS.length]}
-            strokeWidth={2}
-            dot={false}
-            connectNulls={false}
+            fill={CHART_COLORS[i % CHART_COLORS.length]}
+            radius={[4, 4, 0, 0]}
           />
         ))}
-      </LineChart>
+      </BarChart>
     </ChartContainer>
   );
 }

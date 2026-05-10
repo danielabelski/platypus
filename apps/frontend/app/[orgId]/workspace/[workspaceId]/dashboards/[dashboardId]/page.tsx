@@ -300,6 +300,7 @@ const DashboardPage = ({
       weather: { w: 2, h: 8 },
       "line-chart": { w: 6, h: 8 },
       "pie-chart": { w: 4, h: 8 },
+      "bar-chart": { w: 6, h: 8 },
     };
     const { w: dw, h: dh } = defaultSize[newWidgetType] ?? { w: 4, h: 3 };
 
@@ -372,10 +373,12 @@ const DashboardPage = ({
     weather: 8,
     "line-chart": 6,
     "pie-chart": 6,
+    "bar-chart": 6,
   };
   const widgetMinW: Record<string, number> = {
     "line-chart": 2,
     "pie-chart": 2,
+    "bar-chart": 2,
   };
   const widgetTypeById = Object.fromEntries(widgets.map((w) => [w.id, w.type]));
   const withMinH = (items: RglLayoutItem[]) =>
@@ -766,12 +769,28 @@ const DashboardPage = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="metric">Metric</SelectItem>
-                  <SelectItem value="text">Text / Markdown</SelectItem>
-                  <SelectItem value="image">Image</SelectItem>
-                  <SelectItem value="weather">Weather</SelectItem>
-                  <SelectItem value="line-chart">Line Chart</SelectItem>
-                  <SelectItem value="pie-chart">Pie Chart</SelectItem>
+                  {(
+                    [
+                      ["metric", "Metric"],
+                      ["text", "Text / Markdown"],
+                      ["image", "Image"],
+                      ["weather", "Weather"],
+                      ["line-chart", "Line Chart"],
+                      ["pie-chart", "Pie Chart"],
+                      ["bar-chart", "Bar Chart"],
+                    ] as const
+                  ).map(([value, label]) => {
+                    const Icon =
+                      widgetTypeIcon[value as keyof typeof widgetTypeIcon];
+                    return (
+                      <SelectItem key={value} value={value}>
+                        <span className="flex items-center gap-2">
+                          {Icon && <Icon className="h-4 w-4 shrink-0" />}
+                          {label}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

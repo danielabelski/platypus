@@ -1034,6 +1034,7 @@ export const widgetTypeSchema = z.enum([
   "image",
   "weather",
   "line-chart",
+  "pie-chart",
 ]);
 
 export type WidgetType = z.infer<typeof widgetTypeSchema>;
@@ -1111,12 +1112,39 @@ export const lineChartWidgetDataSchema = z.object({
 
 export type LineChartWidgetData = z.infer<typeof lineChartWidgetDataSchema>;
 
+export const pieChartSegmentSchema = z.object({
+  label: z.string().describe("Segment name shown in the legend and tooltip"),
+  value: z.number().describe("Absolute numeric value for this segment"),
+});
+
+export const pieChartWidgetDataSchema = z.object({
+  centerLabel: z
+    .string()
+    .max(20)
+    .optional()
+    .describe(
+      'Large text displayed in the donut hole, e.g. "$12,400" (max 20 chars)',
+    ),
+  centerSubLabel: z
+    .string()
+    .max(30)
+    .optional()
+    .describe('Smaller text below centerLabel, e.g. "Total" (max 30 chars)'),
+  segments: z
+    .array(pieChartSegmentSchema)
+    .min(1)
+    .describe("One or more segments making up the donut chart"),
+});
+
+export type PieChartWidgetData = z.infer<typeof pieChartWidgetDataSchema>;
+
 export const widgetDataSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("metric"), data: metricWidgetDataSchema }),
   z.object({ type: z.literal("text"), data: textWidgetDataSchema }),
   z.object({ type: z.literal("image"), data: imageWidgetDataSchema }),
   z.object({ type: z.literal("weather"), data: weatherWidgetDataSchema }),
   z.object({ type: z.literal("line-chart"), data: lineChartWidgetDataSchema }),
+  z.object({ type: z.literal("pie-chart"), data: pieChartWidgetDataSchema }),
 ]);
 
 export const widgetSchema = z.object({
@@ -1131,6 +1159,7 @@ export const widgetSchema = z.object({
       imageWidgetDataSchema,
       weatherWidgetDataSchema,
       lineChartWidgetDataSchema,
+      pieChartWidgetDataSchema,
     ])
     .nullable(),
   createdAt: z.date(),
@@ -1169,6 +1198,11 @@ export const widgetUpdateDataSchema = z.discriminatedUnion("type", [
     type: z.literal("line-chart"),
     title: z.string().min(1).max(200).optional(),
     data: lineChartWidgetDataSchema,
+  }),
+  z.object({
+    type: z.literal("pie-chart"),
+    title: z.string().min(1).max(200).optional(),
+    data: pieChartWidgetDataSchema,
   }),
 ]);
 

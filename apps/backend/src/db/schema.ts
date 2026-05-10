@@ -650,7 +650,9 @@ export const widget = pgTable(
       .references(() => dashboard.id, { onDelete: "cascade" }),
     type: t
       .text("type")
-      .$type<"metric" | "text" | "image" | "weather" | "line-chart">()
+      .$type<
+        "metric" | "text" | "image" | "weather" | "line-chart" | "pie-chart"
+      >()
       .notNull(),
     title: t.text("title").notNull(),
     data: t.jsonb("data"),

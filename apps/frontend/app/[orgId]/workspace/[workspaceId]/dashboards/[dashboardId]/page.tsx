@@ -22,6 +22,7 @@ import {
   type WeatherWidgetData,
   type WeatherCondition,
   type LineChartWidgetData,
+  type PieChartWidgetData,
 } from "@platypus/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,8 +66,19 @@ import {
   AlignLeft,
   CloudSun,
   ChartLine,
+  ChartPie,
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Pie,
+  PieChart,
+  Cell,
+  Label as RechartsLabel,
+} from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -852,12 +864,239 @@ function LineChartWidget({
   );
 }
 
+function PieChartWidget({
+  widget,
+  editing,
+  onSave,
+}: {
+  widget: Widget;
+  editing?: boolean;
+  onSave?: (data: object, title: string) => void;
+}) {
+  const data = widget.data as PieChartWidgetData | null | undefined;
+  const [title, setTitle] = useState(widget.title);
+  const [centerLabel, setCenterLabel] = useState(data?.centerLabel ?? "");
+  const [centerSubLabel, setCenterSubLabel] = useState(
+    data?.centerSubLabel ?? "",
+  );
+  const [segments, setSegments] = useState(
+    data?.segments ?? [{ label: "", value: 0 }],
+  );
+
+  useEffect(() => {
+    setTitle(widget.title);
+  }, [widget.title]);
+
+  useEffect(() => {
+    setCenterLabel(data?.centerLabel ?? "");
+    setCenterSubLabel(data?.centerSubLabel ?? "");
+    setSegments(data?.segments ?? [{ label: "", value: 0 }]);
+  }, [data?.centerLabel, data?.centerSubLabel, data?.segments]);
+
+  if (editing) {
+    const handleAddSegment = () =>
+      setSegments((prev) => [...prev, { label: "", value: 0 }]);
+
+    const handleRemoveSegment = (i: number) =>
+      setSegments((prev) => prev.filter((_, idx) => idx !== i));
+
+    const handleSave = () => {
+      if (!onSave) return;
+      onSave(
+        {
+          ...(centerLabel ? { centerLabel } : {}),
+          ...(centerSubLabel ? { centerSubLabel } : {}),
+          segments,
+        },
+        title,
+      );
+    };
+
+    return (
+      <div className="flex flex-col gap-2 p-3 h-full overflow-auto">
+        <div className="space-y-1">
+          <Label className="text-xs">Name</Label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="h-7 text-sm"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Center label (optional)</Label>
+            <Input
+              value={centerLabel}
+              onChange={(e) => setCenterLabel(e.target.value)}
+              placeholder="$12,400"
+              maxLength={20}
+              className="h-7 text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Center sub-label (optional)</Label>
+            <Input
+              value={centerSubLabel}
+              onChange={(e) => setCenterSubLabel(e.target.value)}
+              placeholder="Total"
+              maxLength={30}
+              className="h-7 text-sm"
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Segments</Label>
+            <button
+              onClick={handleAddSegment}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5"
+            >
+              <Plus className="h-3 w-3" /> Add segment
+            </button>
+          </div>
+          {segments.map((s, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <div
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{
+                  backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                }}
+              />
+              <Input
+                value={s.label}
+                onChange={(e) =>
+                  setSegments((prev) =>
+                    prev.map((item, idx) =>
+                      idx === i ? { ...item, label: e.target.value } : item,
+                    ),
+                  )
+                }
+                placeholder="Label"
+                className="h-6 text-xs flex-1"
+              />
+              <Input
+                type="number"
+                value={s.value}
+                onChange={(e) =>
+                  setSegments((prev) =>
+                    prev.map((item, idx) =>
+                      idx === i
+                        ? { ...item, value: Number(e.target.value) }
+                        : item,
+                    ),
+                  )
+                }
+                placeholder="Value"
+                className="h-6 text-xs w-24"
+              />
+              {segments.length > 1 && (
+                <button
+                  onClick={() => handleRemoveSegment(i)}
+                  className="text-muted-foreground hover:text-destructive shrink-0"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        <Button size="sm" className="mt-auto" onClick={handleSave}>
+          <Check className="h-3 w-3" /> Save
+        </Button>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-sm text-muted-foreground italic">No data yet</p>
+      </div>
+    );
+  }
+
+  const chartConfig: ChartConfig = Object.fromEntries(
+    data.segments.map((s, i) => [
+      s.label,
+      { label: s.label, color: CHART_COLORS[i % CHART_COLORS.length] },
+    ]),
+  );
+
+  const total = data.segments.reduce((sum, s) => sum + s.value, 0);
+
+  return (
+    <ChartContainer
+      config={chartConfig}
+      className="h-full w-full aspect-auto px-2 pt-2 pb-1"
+    >
+      <PieChart>
+        <ChartTooltip content={<ChartTooltipContent />} />
+        <Pie
+          data={data.segments}
+          dataKey="value"
+          nameKey="label"
+          innerRadius="55%"
+          outerRadius="80%"
+          paddingAngle={2}
+          stroke="none"
+        >
+          {data.segments.map((s, i) => (
+            <Cell key={s.label} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+          ))}
+          {(data.centerLabel || data.centerSubLabel) && (
+            <RechartsLabel
+              content={({ viewBox }) => {
+                if (!viewBox || !("cx" in viewBox) || !("cy" in viewBox))
+                  return null;
+                const { cx, cy } = viewBox as { cx: number; cy: number };
+                return (
+                  <text
+                    x={cx}
+                    y={cy}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                  >
+                    {data.centerLabel && (
+                      <tspan
+                        x={cx}
+                        dy={data.centerSubLabel ? "-0.5em" : "0"}
+                        className="fill-foreground text-xl font-bold"
+                        fontSize={20}
+                        fontWeight="bold"
+                      >
+                        {data.centerLabel}
+                      </tspan>
+                    )}
+                    {data.centerSubLabel && (
+                      <tspan
+                        x={cx}
+                        dy={data.centerLabel ? "1.4em" : "0"}
+                        className="fill-muted-foreground"
+                        fontSize={12}
+                        fill="var(--muted-foreground)"
+                      >
+                        {data.centerSubLabel}
+                      </tspan>
+                    )}
+                  </text>
+                );
+              }}
+            />
+          )}
+        </Pie>
+        <ChartLegend content={<ChartLegendContent />} />
+      </PieChart>
+    </ChartContainer>
+  );
+}
+
 const widgetTypeIcon = {
   metric: Hash,
   text: AlignLeft,
   image: ImageIcon,
   weather: CloudSun,
   "line-chart": ChartLine,
+  "pie-chart": ChartPie,
 } as const;
 
 const widgetTypeComponent = {
@@ -866,6 +1105,7 @@ const widgetTypeComponent = {
   image: ImageWidget,
   weather: WeatherWidget,
   "line-chart": LineChartWidget,
+  "pie-chart": PieChartWidget,
 } as const;
 
 // ─── Main page ───────────────────────────────────────────────────────────────
@@ -1104,6 +1344,7 @@ const DashboardPage = ({
       image: { w: 4, h: 7 },
       weather: { w: 2, h: 8 },
       "line-chart": { w: 6, h: 8 },
+      "pie-chart": { w: 4, h: 8 },
     };
     const { w: dw, h: dh } = defaultSize[newWidgetType] ?? { w: 4, h: 3 };
 
@@ -1172,8 +1413,15 @@ const DashboardPage = ({
   // Stamp minH onto every layout item at render time. Values are per widget
   // type and not stored in the DB — injected here so the grid enforces them
   // during resize.
-  const widgetMinH: Record<string, number> = { weather: 8, "line-chart": 6 };
-  const widgetMinW: Record<string, number> = { "line-chart": 2 };
+  const widgetMinH: Record<string, number> = {
+    weather: 8,
+    "line-chart": 6,
+    "pie-chart": 6,
+  };
+  const widgetMinW: Record<string, number> = {
+    "line-chart": 2,
+    "pie-chart": 2,
+  };
   const widgetTypeById = Object.fromEntries(widgets.map((w) => [w.id, w.type]));
   const withMinH = (items: RglLayoutItem[]) =>
     items.map((item) => ({
@@ -1571,6 +1819,7 @@ const DashboardPage = ({
                   <SelectItem value="image">Image</SelectItem>
                   <SelectItem value="weather">Weather</SelectItem>
                   <SelectItem value="line-chart">Line Chart</SelectItem>
+                  <SelectItem value="pie-chart">Pie Chart</SelectItem>
                 </SelectContent>
               </Select>
             </div>

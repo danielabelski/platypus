@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Footprints, Wrench, MessageSquare } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const TriggerRunsPage = ({
   params,
@@ -30,7 +31,7 @@ const TriggerRunsPage = ({
   const { user } = useAuth();
   const backendUrl = useBackendUrl();
 
-  const { data: trigger } = useSWR<Trigger>(
+  const { data: trigger, isLoading: isLoadingTrigger } = useSWR<Trigger>(
     backendUrl && user
       ? joinUrl(
           backendUrl,
@@ -40,7 +41,9 @@ const TriggerRunsPage = ({
     fetcher,
   );
 
-  const { data: runsData, isLoading } = useSWR<{ results: TriggerRun[] }>(
+  const { data: runsData, isLoading: isLoadingRuns } = useSWR<{
+    results: TriggerRun[];
+  }>(
     backendUrl && user
       ? joinUrl(
           backendUrl,
@@ -51,6 +54,7 @@ const TriggerRunsPage = ({
   );
 
   const runs = runsData?.results || [];
+  const isLoading = isLoadingTrigger || isLoadingRuns;
 
   const getStatusBadge = (status: TriggerRun["status"]) => {
     switch (status) {
@@ -86,105 +90,125 @@ const TriggerRunsPage = ({
         <BackButton
           fallbackHref={`/${orgId}/workspace/${workspaceId}/triggers/${triggerId}`}
         />
-        <h1 className="text-2xl mb-1 font-bold">
-          {trigger ? trigger.name : "Run History"}
-        </h1>
-        {trigger?.description && (
-          <p className="text-muted-foreground mb-4">{trigger.description}</p>
-        )}
-        {!trigger?.description && <div className="mb-4" />}
-
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : runs.length === 0 ? (
-          <p className="text-muted-foreground">
-            No runs yet. Runs will appear here after the trigger fires.
-          </p>
-        ) : (
-          <div className="border rounded-lg divide-y">
-            {runs.map((run) => {
-              const stats = run.stats as TriggerRunStats | null | undefined;
-              return (
-                <div key={run.id} className="p-4">
+          <>
+            <Skeleton className="h-8 w-48 mb-1" />
+            <Skeleton className="h-4 w-64 mb-4" />
+            <div className="border rounded-lg divide-y">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-4">
                   <div className="flex items-center gap-4">
-                    {getStatusBadge(run.status)}
-                    <div>
-                      <p className="font-medium">
-                        {format(new Date(run.startedAt), "PPp")}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatDistanceToNow(new Date(run.startedAt), {
-                          addSuffix: true,
-                        })}
-                      </p>
-                      {run.eventType && (
-                        <p className="text-sm text-muted-foreground">
-                          Event: {run.eventType}
-                        </p>
-                      )}
-                      {run.completedAt && (
-                        <p className="text-sm text-muted-foreground">
-                          Duration: {getDuration(run)}
-                        </p>
-                      )}
-                      {stats && (
-                        <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Footprints className="h-3 w-3" />
-                            {stats.steps} step{stats.steps !== 1 ? "s" : ""}
-                          </span>
-                          {stats.toolCalls.length > 0 ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="flex items-center gap-1 cursor-default">
-                                  <Wrench className="h-3 w-3" />
-                                  {stats.toolCalls.reduce(
-                                    (sum, tc) => sum + tc.count,
-                                    0,
-                                  )}{" "}
-                                  tool call
-                                  {stats.toolCalls.reduce(
-                                    (sum, tc) => sum + tc.count,
-                                    0,
-                                  ) !== 1
-                                    ? "s"
-                                    : ""}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <ul className="text-left">
-                                  {stats.toolCalls.map((tc) => (
-                                    <li key={tc.name}>
-                                      {tc.name} &times;{tc.count}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <span className="flex items-center gap-1">
-                              <Wrench className="h-3 w-3" />0 tool calls
-                            </span>
-                          )}
-                          <span className="flex items-center gap-1">
-                            <MessageSquare className="h-3 w-3" />
-                            {stats.inputTokens} in / {stats.outputTokens} out
-                          </span>
-                        </div>
-                      )}
-                      {run.errorMessage && (
-                        <p className="text-sm text-destructive mt-1">
-                          {run.errorMessage}
-                        </p>
-                      )}
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                    <div className="flex flex-col gap-1.5">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-3 w-32" />
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl mb-1 font-bold">{trigger?.name}</h1>
+            {trigger?.description ? (
+              <p className="text-muted-foreground mb-4">
+                {trigger.description}
+              </p>
+            ) : (
+              <div className="mb-4" />
+            )}
+            {runs.length === 0 ? (
+              <p className="text-muted-foreground">
+                No runs yet. Runs will appear here after the trigger fires.
+              </p>
+            ) : (
+              <div className="border rounded-lg divide-y">
+                {runs.map((run) => {
+                  const stats = run.stats as TriggerRunStats | null | undefined;
+                  return (
+                    <div key={run.id} className="p-4">
+                      <div className="flex items-center gap-4">
+                        {getStatusBadge(run.status)}
+                        <div>
+                          <p className="font-medium">
+                            {format(new Date(run.startedAt), "PPp")}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {formatDistanceToNow(new Date(run.startedAt), {
+                              addSuffix: true,
+                            })}
+                          </p>
+                          {run.eventType && (
+                            <p className="text-sm text-muted-foreground">
+                              Event: {run.eventType}
+                            </p>
+                          )}
+                          {run.completedAt && (
+                            <p className="text-sm text-muted-foreground">
+                              Duration: {getDuration(run)}
+                            </p>
+                          )}
+                          {stats && (
+                            <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Footprints className="h-3 w-3" />
+                                {stats.steps} step{stats.steps !== 1 ? "s" : ""}
+                              </span>
+                              {stats.toolCalls.length > 0 ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex items-center gap-1 cursor-default">
+                                      <Wrench className="h-3 w-3" />
+                                      {stats.toolCalls.reduce(
+                                        (sum, tc) => sum + tc.count,
+                                        0,
+                                      )}{" "}
+                                      tool call
+                                      {stats.toolCalls.reduce(
+                                        (sum, tc) => sum + tc.count,
+                                        0,
+                                      ) !== 1
+                                        ? "s"
+                                        : ""}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <ul className="text-left">
+                                      {stats.toolCalls.map((tc) => (
+                                        <li key={tc.name}>
+                                          {tc.name} &times;{tc.count}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <Wrench className="h-3 w-3" />0 tool calls
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <MessageSquare className="h-3 w-3" />
+                                {stats.inputTokens} in / {stats.outputTokens}{" "}
+                                out
+                              </span>
+                            </div>
+                          )}
+                          {run.errorMessage && (
+                            <p className="text-sm text-destructive mt-1">
+                              {run.errorMessage}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

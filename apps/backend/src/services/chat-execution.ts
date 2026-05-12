@@ -146,11 +146,12 @@ export type PrepareChatTurnInput = {
    */
   runMode?: "interactive" | "headless";
   /**
-   * Called on each activity update from any sub-agent. Used by the agent
-   * runner to reset the parent run's per-step timeout while sub-agent work
-   * is actively in progress.
+   * Called whenever a tool call begins, completes, or yields activity.
+   * The agent runner uses this to reset the per-step timeout so long-running
+   * tool calls (e.g. MCP web search, sub-agent delegation) don't trip the
+   * stall detector while work is actively in progress.
    */
-  onSubAgentProgress?: () => void;
+  onActivity?: () => void;
 };
 
 // --- Queries seam ---
@@ -300,7 +301,7 @@ export const prepareChatTurn = async (
     origin,
     frontendUrl,
     runMode = "interactive",
-    onSubAgentProgress,
+    onActivity,
   } = input;
 
   const workspace = await queries.getWorkspace(workspaceId);
@@ -328,14 +329,7 @@ export const prepareChatTurn = async (
   ] = await Promise.all([
     loadTools(queries, agent, workspaceId, orgId, frontendUrl, user.id),
     loadSkills(queries, agent, workspaceId),
-    loadSubAgents(
-      queries,
-      agent,
-      orgId,
-      workspaceId,
-      frontendUrl,
-      onSubAgentProgress,
-    ),
+    loadSubAgents(queries, agent, orgId, workspaceId, frontendUrl, onActivity),
     queries.getUserContexts(user.id, workspaceId),
     queries.getRecentMemories(user.id, workspaceId),
   ]);
@@ -374,6 +368,10 @@ export const prepareChatTurn = async (
     tools.loadSkill = createLoadSkillTool(workspaceId);
   }
 
+  const wrappedTools = onActivity
+    ? wrapToolsWithBump(tools, onActivity)
+    : tools;
+
   const inlinedMessages = origin
     ? await inlineFileUrls(messages, origin)
     : messages;
@@ -396,7 +394,7 @@ export const prepareChatTurn = async (
   return {
     stream: {
       model,
-      tools,
+      tools: wrappedTools,
       system: systemPrompt,
       messages: inlinedMessages,
       maxSteps: resolvedMaxSteps,
@@ -426,6 +424,40 @@ export const prepareChatTurn = async (
 };
 
 // --- Private helpers ---
+
+/**
+ * Wraps each tool's `execute` so a `bump()` fires when the call starts and
+ * when its promise settles. Keeps the per-step stall detector aware of
+ * long-running tool calls (MCP web search, fetch, etc.) that would otherwise
+ * complete only at `onStepFinish`. Sub-agent tools whose `execute` is an
+ * async generator are returned by reference; their internal yields already
+ * bump via `onProgress`, and the start-of-call bump still applies.
+ */
+const wrapToolsWithBump = (
+  tools: Record<string, Tool>,
+  bump: () => void,
+): Record<string, Tool> => {
+  const wrapped: Record<string, Tool> = {};
+  for (const [name, t] of Object.entries(tools)) {
+    const execute = (t as any).execute;
+    if (typeof execute !== "function") {
+      wrapped[name] = t;
+      continue;
+    }
+    wrapped[name] = {
+      ...t,
+      execute: function (args: any, options: any) {
+        bump();
+        const result = execute.call(t, args, options);
+        if (result && typeof (result as any).then === "function") {
+          return (result as Promise<any>).finally(() => bump());
+        }
+        return result;
+      },
+    } as Tool;
+  }
+  return wrapped;
+};
 
 const resolveChatContext = async (
   queries: ChatTurnQueries,

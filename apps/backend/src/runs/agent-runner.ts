@@ -136,7 +136,7 @@ export class AgentRunner {
     input: RunInput,
     origin: string | undefined,
     frontendUrl?: string,
-    onSubAgentProgress?: () => void,
+    onActivity?: () => void,
   ): Promise<ChatTurn> {
     return prepareChatTurn({
       orgId: scope.orgId,
@@ -147,7 +147,7 @@ export class AgentRunner {
       origin,
       frontendUrl,
       runMode: scope.principal.kind === "user" ? "interactive" : "headless",
-      onSubAgentProgress,
+      onActivity,
     });
   }
 

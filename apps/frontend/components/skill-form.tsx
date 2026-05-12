@@ -235,12 +235,11 @@ const SkillForm = ({
             <ExpandableTextarea
               id="description"
               label="Description"
-              expandable={false}
               placeholder="A brief description of what this skill does..."
               value={formData.description}
               onChange={handleChange}
               disabled={isSubmitting}
-              maxLength={128}
+              maxLength={1024}
               aria-invalid={!!validationErrors.description}
               error={validationErrors.description}
             />

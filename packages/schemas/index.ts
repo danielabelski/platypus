@@ -235,7 +235,7 @@ export const skillSchema = z.object({
     .min(5)
     .max(64)
     .regex(skillNameRegex, "Skill name must be kebab-case"),
-  description: z.string().min(24).max(128),
+  description: z.string().min(24).max(1024),
   body: z.string().min(48).max(50000),
   createdAt: z.date(),
   updatedAt: z.date(),

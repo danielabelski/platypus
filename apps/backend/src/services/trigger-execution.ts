@@ -134,11 +134,38 @@ export const executeTrigger = async (
     scope,
     input,
     sink,
-    options: { frontendUrl: process.env.FRONTEND_URL },
+    options: {
+      frontendUrl: process.env.FRONTEND_URL,
+      timeouts: triggerTimeouts(),
+    },
   });
 
   return runId;
 };
+
+/**
+ * Headless trigger runs aren't user-facing — there's no UX reason for a
+ * 2-minute per-step / 10-minute per-run cap. Crons are allowed to do
+ * substantial work (multi-step research, long MCP searches). Defaults aim
+ * to bound runaway runs without tripping on legitimate workloads.
+ *
+ * Override via env when production workloads need more or less headroom:
+ *  - `TRIGGER_PER_STEP_TIMEOUT_MS` (default 10 min)
+ *  - `TRIGGER_PER_RUN_TIMEOUT_MS` (default 60 min)
+ */
+const DEFAULT_TRIGGER_PER_STEP_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_TRIGGER_PER_RUN_TIMEOUT_MS = 60 * 60 * 1000;
+
+const triggerTimeouts = () => ({
+  perStepTimeoutMs: parseInt(
+    process.env.TRIGGER_PER_STEP_TIMEOUT_MS ??
+      String(DEFAULT_TRIGGER_PER_STEP_TIMEOUT_MS),
+  ),
+  perRunTimeoutMs: parseInt(
+    process.env.TRIGGER_PER_RUN_TIMEOUT_MS ??
+      String(DEFAULT_TRIGGER_PER_RUN_TIMEOUT_MS),
+  ),
+});
 
 /**
  * Updates the trigger after execution:

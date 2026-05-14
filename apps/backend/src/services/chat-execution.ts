@@ -380,8 +380,31 @@ export const prepareChatTurn = async (
     tools.loadSkill = createLoadSkillTool(workspaceId);
   }
 
+  // Heartbeat: while any tool call is in flight, fire `onActivity()` every
+  // HEARTBEAT_INTERVAL_MS so the run's per-step stall timer never expires
+  // mid-tool-call. Edge bumps (start/end) alone are insufficient because a
+  // single slow tool — or a sub-agent whose own MCP call is slow and yields
+  // no parts for >2 minutes — can outlive the timer between events. The
+  // heartbeat keeps the timer alive for the entire lifetime of any work.
+  let inflight = 0;
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  const HEARTBEAT_INTERVAL_MS = 30 * 1000;
+  const onToolStart = () => {
+    inflight += 1;
+    if (inflight === 1 && onActivity) {
+      heartbeat = setInterval(() => onActivity(), HEARTBEAT_INTERVAL_MS);
+    }
+  };
+  const onToolEnd = () => {
+    inflight = Math.max(0, inflight - 1);
+    if (inflight === 0 && heartbeat) {
+      clearInterval(heartbeat);
+      heartbeat = undefined;
+    }
+  };
+
   const wrappedTools = onActivity
-    ? wrapToolsWithBump(tools, onActivity)
+    ? wrapToolsWithBump(tools, onActivity, onToolStart, onToolEnd)
     : tools;
 
   const inlinedMessages = origin
@@ -392,6 +415,10 @@ export const prepareChatTurn = async (
   const dispose = async () => {
     if (disposed) return;
     disposed = true;
+    if (heartbeat) {
+      clearInterval(heartbeat);
+      heartbeat = undefined;
+    }
     for (const client of allMcpClients) {
       try {
         await client.close();
@@ -438,18 +465,25 @@ export const prepareChatTurn = async (
 // --- Private helpers ---
 
 /**
- * Wraps each tool's `execute` so the activity callback fires on call start
- * and on call settle. Keeps the per-step stall detector aware of long-running
- * tool calls (MCP web search, fetch, etc.) that would otherwise complete only
- * at `onStepFinish`, and gives the runner per-tool boundary events it can log
- * with `runId` + `toolName` + `durationMs` for post-mortem visibility.
+ * Wraps each tool's `execute` to:
+ * 1. Emit `start` / `end` activity events for structured logging and the
+ *    initial per-step timer bump (`runId`, `toolName`, `durationMs`).
+ * 2. Call `onToolStart` / `onToolEnd` so the surrounding turn can maintain
+ *    an inflight counter and run a heartbeat — the only thing that keeps
+ *    the per-step timer alive across a tool call (or sub-agent) that takes
+ *    longer than the stall threshold to settle.
+ *
  * Sub-agent tools whose `execute` is an async generator are returned by
- * reference; their internal yields already bump via `onProgress`, and the
- * start/end events still fire from the wrapper.
+ * reference; the inflight bookkeeping still happens because they expose
+ * an `execute` function and we wrap it the same way. Their inner part
+ * yields continue to bump the timer via `onProgress` for visibility, but
+ * correctness no longer depends on those yields being frequent enough.
  */
 const wrapToolsWithBump = (
   tools: Record<string, Tool>,
   onActivity: (event?: ToolActivityEvent) => void,
+  onToolStart: () => void,
+  onToolEnd: () => void,
 ): Record<string, Tool> => {
   const wrapped: Record<string, Tool> = {};
   for (const [name, t] of Object.entries(tools)) {
@@ -462,17 +496,44 @@ const wrapToolsWithBump = (
       ...t,
       execute: function (args: any, options: any) {
         const startedAt = Date.now();
+        onToolStart();
         onActivity({ phase: "start", toolName: name });
-        const result = execute.call(t, args, options);
-        if (result && typeof (result as any).then === "function") {
-          return (result as Promise<any>).finally(() =>
-            onActivity({
-              phase: "end",
-              toolName: name,
-              durationMs: Date.now() - startedAt,
-            }),
-          );
+        const finish = () => {
+          onToolEnd();
+          onActivity({
+            phase: "end",
+            toolName: name,
+            durationMs: Date.now() - startedAt,
+          });
+        };
+        let result: unknown;
+        try {
+          result = execute.call(t, args, options);
+        } catch (err) {
+          finish();
+          throw err;
         }
+        if (result && typeof (result as any).then === "function") {
+          return (result as Promise<any>).finally(finish);
+        }
+        // Async iterable / generator path (sub-agent tools). Wrap it so the
+        // counter decrements once the consumer drains the iterator.
+        if (
+          result &&
+          typeof (result as any)[Symbol.asyncIterator] === "function"
+        ) {
+          const inner = result as AsyncIterable<unknown>;
+          return (async function* () {
+            try {
+              for await (const part of inner) {
+                yield part;
+              }
+            } finally {
+              finish();
+            }
+          })();
+        }
+        finish();
         return result;
       },
     } as Tool;

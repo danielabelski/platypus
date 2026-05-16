@@ -380,31 +380,15 @@ export const prepareChatTurn = async (
     tools.loadSkill = createLoadSkillTool(workspaceId);
   }
 
-  // Heartbeat: while any tool call is in flight, fire `onActivity()` every
-  // HEARTBEAT_INTERVAL_MS so the run's per-step stall timer never expires
-  // mid-tool-call. Edge bumps (start/end) alone are insufficient because a
-  // single slow tool — or a sub-agent whose own MCP call is slow and yields
-  // no parts for >2 minutes — can outlive the timer between events. The
-  // heartbeat keeps the timer alive for the entire lifetime of any work.
-  let inflight = 0;
-  let heartbeat: ReturnType<typeof setInterval> | undefined;
-  const HEARTBEAT_INTERVAL_MS = 30 * 1000;
-  const onToolStart = () => {
-    inflight += 1;
-    if (inflight === 1 && onActivity) {
-      heartbeat = setInterval(() => onActivity(), HEARTBEAT_INTERVAL_MS);
-    }
-  };
-  const onToolEnd = () => {
-    inflight = Math.max(0, inflight - 1);
-    if (inflight === 0 && heartbeat) {
-      clearInterval(heartbeat);
-      heartbeat = undefined;
-    }
-  };
+  const heartbeat = onActivity ? createToolHeartbeat(onActivity) : null;
 
-  const wrappedTools = onActivity
-    ? wrapToolsWithBump(tools, onActivity, onToolStart, onToolEnd)
+  const wrappedTools = heartbeat
+    ? wrapToolsWithBump(
+        tools,
+        onActivity!,
+        heartbeat.onToolStart,
+        heartbeat.onToolEnd,
+      )
     : tools;
 
   const inlinedMessages = origin
@@ -415,10 +399,7 @@ export const prepareChatTurn = async (
   const dispose = async () => {
     if (disposed) return;
     disposed = true;
-    if (heartbeat) {
-      clearInterval(heartbeat);
-      heartbeat = undefined;
-    }
+    heartbeat?.stop();
     for (const client of allMcpClients) {
       try {
         await client.close();
@@ -463,6 +444,65 @@ export const prepareChatTurn = async (
 };
 
 // --- Private helpers ---
+
+/**
+ * Default cadence between heartbeat bumps while any tool is in flight. Must
+ * be comfortably below the smallest configured per-step timeout (2 min for
+ * chat by default) so a slow tool can't outlive the timer between heartbeats.
+ */
+export const DEFAULT_TOOL_HEARTBEAT_INTERVAL_MS = 30 * 1000;
+
+/**
+ * Tracks how many tool calls are currently executing and fires `bump()` at a
+ * fixed cadence while that count is positive. Used by `prepareChatTurn` to
+ * keep the run's per-step stall timer alive across a long tool call or a
+ * sub-agent whose own tool calls yield no parts for an extended period.
+ *
+ * Exported for direct testing — production callers should always go through
+ * `prepareChatTurn`.
+ */
+export const createToolHeartbeat = (
+  bump: () => void,
+  intervalMs: number = DEFAULT_TOOL_HEARTBEAT_INTERVAL_MS,
+): {
+  onToolStart: () => void;
+  onToolEnd: () => void;
+  stop: () => void;
+  /** Visible for tests. Number of tool calls currently being tracked. */
+  inflight: () => number;
+} => {
+  let inflight = 0;
+  let stopped = false;
+  let timer: ReturnType<typeof setInterval> | undefined;
+
+  return {
+    onToolStart: () => {
+      // Defensive: if a tool callback somehow fires after stop() (e.g. an
+      // MCP transport that ignores AbortSignal), don't start a fresh timer
+      // that nothing will clean up.
+      if (stopped) return;
+      inflight += 1;
+      if (inflight === 1) {
+        timer = setInterval(bump, intervalMs);
+      }
+    },
+    onToolEnd: () => {
+      inflight = Math.max(0, inflight - 1);
+      if (inflight === 0 && timer) {
+        clearInterval(timer);
+        timer = undefined;
+      }
+    },
+    stop: () => {
+      stopped = true;
+      if (timer) {
+        clearInterval(timer);
+        timer = undefined;
+      }
+    },
+    inflight: () => inflight,
+  };
+};
 
 /**
  * Wraps each tool's `execute` to:

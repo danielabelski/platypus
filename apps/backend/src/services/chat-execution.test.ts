@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const {
   mockCreateOpenAI,
@@ -44,6 +44,7 @@ import {
   prepareChatTurn,
   NotFoundError,
   ValidationError,
+  createToolHeartbeat,
 } from "./chat-execution.ts";
 import { createInMemoryChatTurnQueries } from "./chat-execution.test-fixtures.ts";
 
@@ -192,7 +193,9 @@ describe("chat-execution", () => {
     });
 
     it("throws ValidationError when neither agentId nor providerId+modelId is supplied", async () => {
-      const queries = createInMemoryChatTurnQueries({ workspaces: [baseWorkspace] });
+      const queries = createInMemoryChatTurnQueries({
+        workspaces: [baseWorkspace],
+      });
 
       await expect(
         prepareChatTurn(
@@ -203,7 +206,9 @@ describe("chat-execution", () => {
     });
 
     it("throws NotFoundError when the Agent does not exist", async () => {
-      const queries = createInMemoryChatTurnQueries({ workspaces: [baseWorkspace] });
+      const queries = createInMemoryChatTurnQueries({
+        workspaces: [baseWorkspace],
+      });
 
       await expect(
         prepareChatTurn(
@@ -217,7 +222,9 @@ describe("chat-execution", () => {
     });
 
     it("throws NotFoundError when the Provider does not exist", async () => {
-      const queries = createInMemoryChatTurnQueries({ workspaces: [baseWorkspace] });
+      const queries = createInMemoryChatTurnQueries({
+        workspaces: [baseWorkspace],
+      });
 
       await expect(
         prepareChatTurn(
@@ -271,6 +278,92 @@ describe("chat-execution", () => {
           queries,
         ),
       ).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
+  describe("createToolHeartbeat", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("fires bump at the configured cadence while a tool is in flight", () => {
+      const bump = vi.fn();
+      const hb = createToolHeartbeat(bump, 1000);
+
+      hb.onToolStart();
+      // No bump yet — the heartbeat fires on each interval tick, not at start.
+      expect(bump).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1000);
+      expect(bump).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(2000);
+      expect(bump).toHaveBeenCalledTimes(3);
+
+      hb.onToolEnd();
+      vi.advanceTimersByTime(5000);
+      // No further bumps after the last tool ends.
+      expect(bump).toHaveBeenCalledTimes(3);
+    });
+
+    it("keeps a single heartbeat running across parallel tool calls", () => {
+      const bump = vi.fn();
+      const hb = createToolHeartbeat(bump, 1000);
+
+      hb.onToolStart();
+      hb.onToolStart();
+      hb.onToolStart();
+      expect(hb.inflight()).toBe(3);
+
+      vi.advanceTimersByTime(3000);
+      // Three ticks — proves only one interval is running, not three.
+      expect(bump).toHaveBeenCalledTimes(3);
+
+      hb.onToolEnd();
+      hb.onToolEnd();
+      // Still one tool in flight, heartbeat continues.
+      vi.advanceTimersByTime(1000);
+      expect(bump).toHaveBeenCalledTimes(4);
+
+      hb.onToolEnd();
+      expect(hb.inflight()).toBe(0);
+      vi.advanceTimersByTime(5000);
+      expect(bump).toHaveBeenCalledTimes(4);
+    });
+
+    it("stop() halts the heartbeat and prevents future onToolStart from restarting it", () => {
+      const bump = vi.fn();
+      const hb = createToolHeartbeat(bump, 1000);
+
+      hb.onToolStart();
+      vi.advanceTimersByTime(1000);
+      expect(bump).toHaveBeenCalledTimes(1);
+
+      hb.stop();
+      vi.advanceTimersByTime(5000);
+      expect(bump).toHaveBeenCalledTimes(1);
+
+      // Defensive: a tool callback firing after dispose must not resurrect
+      // a heartbeat that nothing will clean up.
+      hb.onToolStart();
+      vi.advanceTimersByTime(5000);
+      expect(bump).toHaveBeenCalledTimes(1);
+    });
+
+    it("onToolEnd is safe to over-call (inflight clamped at zero)", () => {
+      const bump = vi.fn();
+      const hb = createToolHeartbeat(bump, 1000);
+
+      hb.onToolEnd();
+      hb.onToolEnd();
+      expect(hb.inflight()).toBe(0);
+
+      vi.advanceTimersByTime(5000);
+      expect(bump).not.toHaveBeenCalled();
     });
   });
 });

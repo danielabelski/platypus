@@ -528,7 +528,7 @@ const AgentForm = ({
               value={formData.description}
               onChange={handleChange}
               disabled={isSubmitting}
-              maxLength={96}
+              maxLength={128}
               aria-invalid={!!validationErrors.description}
               error={validationErrors.description}
             />

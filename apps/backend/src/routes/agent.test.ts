@@ -86,7 +86,7 @@ describe("Agent Routes", () => {
       // requireWorkspaceAccess
       mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]);
 
-      const longDescription = "a".repeat(97);
+      const longDescription = "a".repeat(129);
 
       const res = await app.request(baseUrl, {
         method: "POST",
@@ -192,7 +192,7 @@ describe("Agent Routes", () => {
       // requireWorkspaceAccess
       mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]);
 
-      const longDescription = "a".repeat(97);
+      const longDescription = "a".repeat(129);
 
       const res = await app.request(`${baseUrl}/agent-1`, {
         method: "PUT",

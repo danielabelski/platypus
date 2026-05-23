@@ -1,7 +1,7 @@
 import { type Skill } from "@platypus/schemas";
 import type { agent as agentTable } from "./db/schema.ts";
 import { subAgentToolName } from "./tools/sub-agent.ts";
-import { MEMORY_TOOLSET_ID } from "./tools/index.ts";
+import { MEMORY_TOOLSET_ID, SANDBOX_TOOLSET_ID } from "./tools/index.ts";
 import {
   formatSummariesForSystemPrompt,
   type MemorySummary,
@@ -112,6 +112,24 @@ ${lines.join("\n")}
 Each task description MUST be entirely self-contained — sub-agents cannot see the parent conversation, other tasks, or any prior context. Include all relevant information directly in each task description. Wait for the sub-agent to complete before using its result.`;
 };
 
+const sandboxFragment: Fragment = (ctx) => {
+  const hasSandboxTools =
+    ctx.agent?.toolSetIds?.includes(SANDBOX_TOOLSET_ID) ?? false;
+  if (!hasSandboxTools) return null;
+
+  return `## Sandbox
+
+You have access to a persistent Linux sandbox rooted at \`/workspace\`. All paths you pass to the sandbox tools (\`shellExec\`, \`fsRead\`, \`fsWrite\`, \`fsEdit\`, \`fsList\`) are resolved relative to this root.
+
+Files you write persist across chat turns — the filesystem is the same one your earlier turns saw and the same one your next turns will see. Use this: stash work, leave notes, build incrementally.
+
+Each \`shellExec\` call starts a fresh shell. No working directory or environment carries across calls; pass \`cwd\` and \`env\` explicitly per call. To run multiple commands sharing state, combine them in one call (e.g. \`cd foo && make\`).
+
+Tool output is bounded. When a response has \`truncated: true\`, narrow your view — \`grep\`, \`head\`, \`tail\`, or a specific \`lineRange\` on \`fsRead\` — rather than re-requesting the same output.
+
+Shell commands time out (default 60s, hard cap 600s). For long jobs, run them in the background and poll for completion.`;
+};
+
 const FRAGMENTS: Fragment[] = [
   agentPromptFragment,
   agentIdentityFragment,
@@ -122,6 +140,7 @@ const FRAGMENTS: Fragment[] = [
   memoryToolsFragment,
   skillsFragment,
   subAgentsFragment,
+  sandboxFragment,
 ];
 
 export function renderSystemPrompt(ctx: SystemPromptContext): string {

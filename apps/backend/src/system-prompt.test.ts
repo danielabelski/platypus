@@ -354,3 +354,34 @@ describe("renderSystemPrompt — ordering snapshots", () => {
     `);
   });
 });
+
+describe("renderSystemPrompt — sandbox fragment", () => {
+  it("omits the sandbox block when the agent does not have the sandbox tool set", () => {
+    const out = renderSystemPrompt({
+      ...baseCtx(),
+      agent: agentRecord({ toolSetIds: ["math-conversions"] }),
+    });
+    expect(out).not.toMatch(/## Sandbox/);
+    expect(out).not.toMatch(/\/workspace/);
+  });
+
+  it("includes the sandbox block when the agent has the sandbox tool set", () => {
+    const out = renderSystemPrompt({
+      ...baseCtx(),
+      agent: agentRecord({ toolSetIds: ["sandbox"] }),
+    });
+    expect(out).toMatch(/## Sandbox/);
+    expect(out).toMatch(/\/workspace/);
+    expect(out).toMatch(/persist across chat turns/);
+    expect(out).toMatch(/fresh shell/);
+    expect(out).toMatch(/truncated/);
+  });
+
+  it("omits the sandbox block when the agent has no tool sets", () => {
+    const out = renderSystemPrompt({
+      ...baseCtx(),
+      agent: agentRecord({ toolSetIds: null }),
+    });
+    expect(out).not.toMatch(/## Sandbox/);
+  });
+});

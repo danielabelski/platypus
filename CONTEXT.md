@@ -8,7 +8,7 @@ Shared vocabulary for the Platypus codebase. Use these terms exactly when discus
 The top-level tenant. Owns Workspaces, organization-scoped Providers, and member roles.
 
 **Workspace**:
-A scoped environment inside an Organization that contains Chats, Agents, MCPs, Skills, and workspace-scoped Providers.
+A scoped environment inside an Organization that contains Chats, Agents, MCPs, Skills, and workspace-scoped Providers. Owned by exactly one User within the Organization; not shared between Users.
 
 **Chat**:
 A persisted conversation in a Workspace. Composed of a sequence of messages and the configuration used to produce the assistant's replies.
@@ -35,6 +35,9 @@ A Model Context Protocol server registered in a Workspace. Resolves to a Tool se
 **Skill**:
 A named capability with a description, attached to an Agent. Surfaced to the model so it can request the skill's instructions on demand via the `loadSkill` Tool.
 
+**Sandbox**:
+A configured, isolated execution environment registered in a Workspace, providing shell and filesystem tools that operate inside it. Resolves to a Tool set at Chat-turn time. The Sandbox interface is pluggable so different backends (local container, remote VM, hosted sandbox-as-a-service, …) can be contributed.
+
 **Memory**:
 A persisted summary of prior activity, retrieved per-User per-Workspace and rendered into the system prompt when the Agent's Tool sets include the memory tool set.
 
@@ -44,7 +47,7 @@ Free-text notes a User attaches at global or per-Workspace scope, rendered into 
 ## Relationships
 
 - An **Organization** has many **Workspaces**.
-- A **Workspace** has many **Chats**, **Agents**, **MCPs**, and **Skills**.
+- A **Workspace** has many **Chats**, **Agents**, **MCPs**, and **Skills**, and zero-or-one **Sandbox**.
 - A **Chat** is produced by a sequence of **Chat turns**.
 - A **Chat turn** uses either an **Agent** or a direct **Provider** + model selection.
 - An **Agent** references one **Provider**, zero-or-more **Tool sets** (static or **MCP**-backed), zero-or-more **Skills**, and zero-or-more **Sub-Agents**.

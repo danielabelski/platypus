@@ -140,11 +140,13 @@ describe("Workspace Routes", () => {
       // Mock requireWorkspaceAccess: workspace owned by user
       mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]);
 
-      // Mock delete
+      // Mock delete — order: orgAccess where (chained) → workspaceAccess where
+      // (chained) → destroyWorkspaceSandboxes select-where (resolves []) →
+      // workspace delete where (resolves).
       mockDb.where
         .mockReturnValueOnce(mockDb)
         .mockReturnValueOnce(mockDb)
-        .mockReturnValueOnce(mockDb)
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
       const res = await app.request("/organizations/org-1/workspaces/ws-1", {

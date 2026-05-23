@@ -17,6 +17,7 @@ import {
   requireWorkspaceAccess,
 } from "../middleware/authorization.ts";
 import type { Variables } from "../server.ts";
+import { destroyWorkspaceSandboxes } from "../sandbox/teardown.ts";
 
 const workspace = new Hono<{ Variables: Variables }>();
 
@@ -171,6 +172,9 @@ workspace.delete(
   requireWorkspaceAccess,
   async (c) => {
     const workspaceId = c.req.param("workspaceId");
+    // Best-effort sandbox teardown before the DB cascade fires. Never throws;
+    // failures are recorded in sandbox_teardown_failure (ADR-0001).
+    await destroyWorkspaceSandboxes(workspaceId);
     await db.delete(workspaceTable).where(eq(workspaceTable.id, workspaceId));
     return c.json({ message: "Workspace deleted" });
   },

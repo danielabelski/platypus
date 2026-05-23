@@ -11,6 +11,8 @@ import {
   requireWorkspaceAccess,
 } from "../middleware/authorization.ts";
 import type { Variables } from "../server.ts";
+import { destroySandboxRow } from "../sandbox/teardown.ts";
+import { logger } from "../logger.ts";
 
 type SandboxRecord = typeof sandboxTable.$inferSelect;
 
@@ -104,7 +106,10 @@ sandbox.put(
   },
 );
 
-/** Delete the workspace's sandbox (404 if none configured) */
+// Delete the workspace's sandbox. Sync, fail-loud per ADR-0001: the adapter's
+// destroy() runs inline and the row is only removed on success. Pass
+// `?force=true` to skip destroy() and remove the row anyway — external
+// resources may leak; logged as a warning.
 sandbox.delete(
   "/",
   requireAuth,
@@ -112,15 +117,47 @@ sandbox.delete(
   requireWorkspaceAccess,
   async (c) => {
     const workspaceId = c.req.param("workspaceId")!;
-    // Note: this does not yet invoke the adapter's destroy() — external
-    // resources will leak until the teardown slice (ADR-0001) lands.
-    const result = await db
-      .delete(sandboxTable)
+    const force = c.req.query("force") === "true";
+
+    const existing = await db
+      .select()
+      .from(sandboxTable)
       .where(eq(sandboxTable.workspaceId, workspaceId))
-      .returning();
-    if (result.length === 0) {
+      .limit(1);
+    if (existing.length === 0) {
       return c.json({ error: "Sandbox not configured" }, 404);
     }
+
+    if (!force) {
+      try {
+        await destroySandboxRow(existing[0]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(
+          { workspaceId, sandboxId: existing[0].id, err },
+          "Sandbox destroy() failed; row preserved so the user can retry",
+        );
+        return c.json(
+          {
+            error: `Failed to destroy sandbox: ${message}. Pass ?force=true to delete the row anyway (external resources may leak).`,
+          },
+          500,
+        );
+      }
+    } else {
+      logger.warn(
+        {
+          workspaceId,
+          sandboxId: existing[0].id,
+          backend: existing[0].backend,
+        },
+        "Sandbox row force-deleted; adapter destroy() was skipped — external resources may leak",
+      );
+    }
+
+    await db
+      .delete(sandboxTable)
+      .where(eq(sandboxTable.workspaceId, workspaceId));
     return c.json({ message: "Sandbox deleted" });
   },
 );

@@ -232,6 +232,13 @@
       "when": 1779510679895,
       "tag": "0032_skinny_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1779512419302,
+      "tag": "0033_cute_random",
+      "breakpoints": true
     }
   ]
 }

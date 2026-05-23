@@ -158,24 +158,57 @@ describe("Sandbox Routes", () => {
   });
 
   describe("DELETE /", () => {
-    it("deletes the sandbox", async () => {
+    it("force-deletes the sandbox without invoking destroy()", async () => {
       mockSession();
       mockDb.limit.mockResolvedValueOnce([{ role: "member" }]);
       mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]);
+      // Existence check
+      mockDb.limit.mockResolvedValueOnce([
+        {
+          id: "sbx-1",
+          workspaceId,
+          backend: "docker",
+          config: {},
+          credentials: {},
+        },
+      ]);
 
-      mockDb.returning.mockResolvedValueOnce([{ id: "sbx-1" }]);
-
-      const res = await app.request(baseUrl, { method: "DELETE" });
+      const res = await app.request(`${baseUrl}?force=true`, {
+        method: "DELETE",
+      });
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ message: "Sandbox deleted" });
+    });
+
+    it("returns 500 when destroy() fails and preserves the row", async () => {
+      mockSession();
+      mockDb.limit.mockResolvedValueOnce([{ role: "member" }]);
+      mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]);
+      // Existence check returns a row whose backend is not registered →
+      // destroySandboxRow throws → 500.
+      mockDb.limit.mockResolvedValueOnce([
+        {
+          id: "sbx-1",
+          workspaceId,
+          backend: "no-such-backend",
+          config: {},
+          credentials: {},
+        },
+      ]);
+
+      const res = await app.request(baseUrl, { method: "DELETE" });
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toMatch(/no-such-backend/);
+      expect(body.error).toMatch(/force=true/);
     });
 
     it("returns 404 when no sandbox is configured", async () => {
       mockSession();
       mockDb.limit.mockResolvedValueOnce([{ role: "member" }]);
       mockDb.limit.mockResolvedValueOnce([{ ownerId: "user-1" }]);
-
-      mockDb.returning.mockResolvedValueOnce([]);
+      // Existence check returns empty
+      mockDb.limit.mockResolvedValueOnce([]);
 
       const res = await app.request(baseUrl, { method: "DELETE" });
       expect(res.status).toBe(404);

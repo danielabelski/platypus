@@ -280,6 +280,22 @@ export const sandbox = pgTable(
   (t) => [uniqueIndex("unique_sandbox_workspace_id").on(t.workspaceId)],
 );
 
+// Records sandbox destroy() failures so operators can reconcile leaked external
+// resources out-of-band. workspace_id is intentionally NOT a foreign key — the
+// table must survive Workspace deletion (see ADR-0001 cascade contract).
+export const sandboxTeardownFailure = pgTable(
+  "sandbox_teardown_failure",
+  (t) => ({
+    id: t.text("id").primaryKey(),
+    workspaceId: t.text("workspace_id").notNull(),
+    backend: t.text("backend").notNull(),
+    config: t.jsonb("config").$type<Record<string, unknown>>().notNull(),
+    error: t.text("error").notNull(),
+    attemptedAt: t.timestamp("attempted_at").notNull().defaultNow(),
+  }),
+  (t) => [index("idx_sandbox_teardown_failure_workspace_id").on(t.workspaceId)],
+);
+
 // Organization membership - links users to organizations with roles
 export const organizationMember = pgTable(
   "organization_member",

@@ -71,7 +71,8 @@ function volumeName(workspaceId: string): string {
 // Build a minimal POSIX (ustar) tar archive containing a single file. We avoid
 // depending on `tar-stream` here because it isn't a direct dependency and
 // hoisting from the pnpm store is not reliable for the strict resolver.
-function buildSingleFileTar(name: string, content: Buffer): Buffer {
+// @internal — exported for tests
+export function buildSingleFileTar(name: string, content: Buffer): Buffer {
   // Strip any leading slash; tar entry names are relative to extraction root.
   const entryName = name.replace(/^\/+/, "");
   if (Buffer.byteLength(entryName) > 100) {
@@ -400,13 +401,16 @@ export class DockerSandboxBackend implements SandboxBackend {
     const container = await this.ensureContainer(ctx);
     const target = absPath(input.path);
 
+    // Use argv form (no shell) so paths can't be interpreted as shell syntax.
     const cmd = input.lineRange
       ? [
-          "/bin/sh",
-          "-c",
-          `sed -n '${input.lineRange[0]},${input.lineRange[1]}p' -- "${target}"`,
+          "sed",
+          "-n",
+          `${input.lineRange[0]},${input.lineRange[1]}p`,
+          "--",
+          target,
         ]
-      : ["/bin/sh", "-c", `cat -- "${target}"`];
+      : ["cat", "--", target];
 
     const res = await runExec(container, cmd, {
       workingDir: SANDBOX_WORKSPACE_ROOT,
@@ -447,11 +451,10 @@ export class DockerSandboxBackend implements SandboxBackend {
     const target = absPath(input.path);
 
     if (input.mode === "create") {
-      const probe = await runExec(
-        container,
-        ["/bin/sh", "-c", `test -e "${target}"`],
-        { workingDir: SANDBOX_WORKSPACE_ROOT },
-      );
+      // argv form — path can't escape into shell syntax.
+      const probe = await runExec(container, ["test", "-e", target], {
+        workingDir: SANDBOX_WORKSPACE_ROOT,
+      });
       if (probe.exitCode === 0) {
         throw new Error(
           `fs.write: path already exists (mode=create): ${input.path}`,
@@ -462,11 +465,7 @@ export class DockerSandboxBackend implements SandboxBackend {
     // Ensure the parent directory exists before extracting the tar.
     const { parent, name } = splitParent(input.path);
     if (parent !== SANDBOX_WORKSPACE_ROOT) {
-      const mk = await runExec(container, [
-        "/bin/sh",
-        "-c",
-        `mkdir -p "${parent}"`,
-      ]);
+      const mk = await runExec(container, ["mkdir", "-p", parent]);
       if (mk.exitCode !== 0) {
         throw new Error(
           `fs.write: failed to create parent directory: ${parent}`,
@@ -485,11 +484,11 @@ export class DockerSandboxBackend implements SandboxBackend {
     const container = await this.ensureContainer(ctx);
     const target = absPath(input.path);
 
-    const readRes = await runExec(
-      container,
-      ["/bin/sh", "-c", `cat -- "${target}"`],
-      { workingDir: SANDBOX_WORKSPACE_ROOT, stdoutCap: MAX_READ_BYTES },
-    );
+    // argv form — path is never shell-interpreted.
+    const readRes = await runExec(container, ["cat", "--", target], {
+      workingDir: SANDBOX_WORKSPACE_ROOT,
+      stdoutCap: MAX_READ_BYTES,
+    });
     if (readRes.exitCode !== 0) {
       const msg = readRes.stderr.toString("utf8").trim() || "fs.edit failed";
       throw new Error(`fs.edit: ${msg}`);
@@ -528,27 +527,24 @@ export class DockerSandboxBackend implements SandboxBackend {
   async fsList(ctx: SandboxContext, input: FsListInput): Promise<FsListOutput> {
     const container = await this.ensureContainer(ctx);
     const target = absPath(input.path);
-    const maxDepth = input.recursive ? null : 1;
-
-    const args: string[] = [`"${target}"`];
-    if (maxDepth !== null) args.push("-maxdepth", String(maxDepth));
-    // Skip the search root itself.
+    // Argv form throughout — no shell, no path/glob interpolation.
+    // Truncation is done in Node instead of `| head`.
+    const args: string[] = ["find", target];
+    if (!input.recursive) args.push("-maxdepth", "1");
     args.push("-mindepth", "1");
     if (input.glob) {
-      // Use -path when the glob includes a slash or **, otherwise -name.
-      // Either flag is happy with literal * patterns.
+      // -name handles a simple file-name glob; -path handles patterns that
+      // include slashes or **. `**` collapses to `*` for find(1) — a lossy
+      // but pragmatic translation; document the limitation in tool description.
       if (input.glob.includes("/") || input.glob.includes("**")) {
-        // Translate `**` to `*` for find(1).
-        const pathGlob = input.glob.replace(/\*\*/g, "*");
-        args.push("-path", `"*/${pathGlob}"`);
+        args.push("-path", `*/${input.glob.replace(/\*\*/g, "*")}`);
       } else {
-        args.push("-name", `"${input.glob}"`);
+        args.push("-name", input.glob);
       }
     }
-    args.push("-printf", "'%y\\t%s\\t%P\\n'");
+    args.push("-printf", "%y\\t%s\\t%P\\n");
 
-    const cmd = `find ${args.join(" ")} 2>/dev/null | head -n ${MAX_LIST_ENTRIES + 1}`;
-    const res = await runExec(container, ["/bin/sh", "-c", cmd], {
+    const res = await runExec(container, args, {
       workingDir: SANDBOX_WORKSPACE_ROOT,
       stdoutCap: 4 * 1024 * 1024,
       stderrCap: MAX_SHELL_OUTPUT_BYTES,
@@ -565,6 +561,7 @@ export class DockerSandboxBackend implements SandboxBackend {
       .filter((l) => l.length > 0);
 
     const entries: FsListEntry[] = [];
+    let truncated = false;
     for (const line of lines) {
       const tab1 = line.indexOf("\t");
       const tab2 = line.indexOf("\t", tab1 + 1);
@@ -582,10 +579,12 @@ export class DockerSandboxBackend implements SandboxBackend {
         type,
         ...(Number.isFinite(size) ? { size } : {}),
       });
+      if (entries.length >= MAX_LIST_ENTRIES) {
+        // If find emitted more entries beyond what we kept, mark truncated.
+        truncated = entries.length < lines.length;
+        break;
+      }
     }
-
-    const truncated = entries.length > MAX_LIST_ENTRIES;
-    if (truncated) entries.length = MAX_LIST_ENTRIES;
 
     return { entries, truncated };
   }

@@ -12,15 +12,21 @@ import {
   ArrowRightLeftIcon,
   BellIcon,
   BotIcon,
+  BoxIcon,
   BrainIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   CircleIcon,
   ClockIcon,
+  FileIcon,
+  FilePenIcon,
+  FilePlusIcon,
+  FolderIcon,
   GlobeIcon,
   KanbanSquareIcon,
   LayoutDashboardIcon,
   SparklesIcon,
+  TerminalIcon,
   ZapIcon,
   WrenchIcon,
   XCircleIcon,
@@ -103,6 +109,23 @@ const toolToToolSet: Record<string, string> = {
   listWidgets: "dashboards",
   getWidget: "dashboards",
   updateWidgetData: "dashboards",
+  // sandbox
+  shellExec: "sandbox",
+  fsRead: "sandbox",
+  fsWrite: "sandbox",
+  fsEdit: "sandbox",
+  fsList: "sandbox",
+};
+
+// Per-tool icon overrides, used when a single toolset has visually distinct
+// tools (e.g. the sandbox toolset's shell vs filesystem tools). Sparse —
+// tools without an entry fall back to their toolset icon.
+const toolIcons: Record<string, LucideIcon> = {
+  shellExec: TerminalIcon,
+  fsRead: FileIcon,
+  fsWrite: FilePlusIcon,
+  fsEdit: FilePenIcon,
+  fsList: FolderIcon,
 };
 
 /** One icon per toolset, matching the workspace home page. */
@@ -118,11 +141,15 @@ const toolSetIcons: Record<string, LucideIcon> = {
   notifications: BellIcon,
   memory: BrainIcon,
   dashboards: LayoutDashboardIcon,
+  sandbox: BoxIcon,
 };
 
 /** Returns an appropriate icon component for a given tool type string. */
 export function getToolIcon(type: string): LucideIcon {
   const name = type.startsWith("tool-") ? type.slice(5) : type;
+  if (toolIcons[name]) {
+    return toolIcons[name];
+  }
   const toolSet = toolToToolSet[name];
   if (toolSet) {
     return toolSetIcons[toolSet] ?? WrenchIcon;

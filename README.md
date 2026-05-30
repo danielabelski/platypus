@@ -196,6 +196,13 @@ This allows browsers to fetch files directly from S3 (or via CDN) instead of goi
 
 - When chatting with Google's image generation models (Nano Banana) you MAY get more than one image returned. See https://blog.laozhang.ai/en/posts/temporary-images-nano-banana-bug
 
+## 🗺️ Roadmap
+
+Curious where Platypus is headed — and where it isn't? See [ROADMAP.md](ROADMAP.md) for
+the project vision and the themes we're working towards. If you're planning a substantial
+contribution, read it (especially the non-goals) and open a discussion first so the effort
+lands well.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on branch naming, commit conventions, and how to submit a pull request.

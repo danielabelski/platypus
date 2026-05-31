@@ -88,21 +88,38 @@ Today every resource is scoped to a single Workspace, so an Org Admin who wants 
 Agents, Skills, and MCPs across many Workspaces has to recreate them by hand — which both
 wastes time and causes configuration drift.
 
-Two complementary mechanisms:
+The design is now settled — see [ADR-0007](docs/adr/0007-organization-scoped-shared-resources.md)
+(Shared resources) and [ADR-0008](docs/adr/0008-workspace-blueprints.md) (Blueprints) for the
+decisions and the alternatives rejected. Two complementary mechanisms:
 
-- **Shared resources** — an Organization-scoped resource is defined once and _referenced_
-  (not copied) by many Workspaces. References are **locked**: a Workspace Owner uses them
-  but can't edit them, and an Org Admin's edits propagate everywhere. A single source of
-  truth means no drift and no accidental breakage.
-- **Workspace blueprints** — a named set of shared references that can be attached when a
-  Workspace is provisioned. Together with the existing invitation flow, blueprints are how
-  an Org Admin pre-configures a ready-to-use Workspace for a new team member, rather than
-  dropping them into an empty one. This is Platypus's answer to org-wide onboarding.
+- **Shared resources** — an Agent, Skill, MCP, or Provider is **Promoted** to Organization
+  scope (the same dual-scope shape `Provider` already uses) and _referenced_, not copied, by
+  many Workspaces through an explicit **Attachment**. References are **locked**: a Workspace
+  Owner uses them but can't edit them, and an Org Admin's edits propagate everywhere. Sharing
+  is **explicit and never cascades** — a Shared resource may only reference other Shared
+  resources, so promotion is blocked until its references are themselves org-scoped. A single
+  source of truth means no drift and no accidental breakage.
+- **Workspace blueprints** — a named, Organization-scoped **macro** that stamps a chosen set
+  of Shared resources into a Workspace as Attachments in one step. It is a **snapshot**, not a
+  living link: it runs once at provisioning (and is re-runnable on demand), and later edits to
+  the Blueprint don't disturb already-provisioned Workspaces. Accepting an invitation always
+  provisions the new member's Workspace; if the Org Admin set a Blueprint on the invite, it
+  lands ready-to-use rather than empty. This is Platypus's answer to org-wide onboarding.
 
-> Deferred open question: a shared Agent that needs to read _Organization-level_ data
-> regardless of which Workspace invokes it (e.g. an org-wide knowledge-base Agent). That
-> crosses Workspace data boundaries and will be worked out separately; first delivery
-> shares Agent _definitions_ that run against the invoking Workspace's resources.
+To make this enforceable, **Workspace creation becomes Org-Admin-only** — members consume the
+Workspaces they're provisioned rather than spinning up their own, which is what lets an Org
+Admin reliably sandbox a contractor into a single, pre-configured Workspace.
+
+Sensible build order: **org-scoped MCP** (a prerequisite feature in its own right) →
+org-scoping for Skills and Agents, plus Attachments and Promote → admin-only Workspace
+creation and invite-time provisioning → the Blueprint macro and its admin UI.
+
+> Deferred, to be worked out separately: a shared Agent that reads _Organization-level_ data
+> regardless of which Workspace invokes it (e.g. an org-wide knowledge-base Agent) — first
+> delivery shares Agent _definitions_ that run against the invoking Workspace's resources;
+> per-Workspace MCP **capability matching**; **Blueprint** seeding of Workspace-owned
+> resources like a Sandbox (copy, not reference); and **self-serviceable Blueprints** a member
+> could pick at creation.
 
 ## Later / Exploring
 

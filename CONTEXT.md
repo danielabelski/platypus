@@ -80,7 +80,7 @@ _Avoid_: template, policy, group.
 - A **Provider** belongs to either an **Organization** (shared) or a **Workspace** (private).
 - An **Agent**, **Skill**, **MCP**, or **Provider** may be a **Shared resource** at **Organization** scope, referenced by **Workspaces** through an **Attachment**; a Sandbox-backed **Tool set** instead rebinds to the invoking **Workspace**'s **Sandbox** at Chat-turn time.
 - A **Blueprint** names a set of **Shared resources** and, applied to a **Workspace**, creates their **Attachments** in one step.
-- **Workspaces** are created only by **Org Admins** — directly, or auto-provisioned for a member when they accept a **Blueprint**-bearing invitation. Members do not create their own.
+- **Workspaces** are created only by **Org Admins** — directly, or auto-provisioned for a member when they accept an invitation. An invitation carries an ordered set of zero-or-more **Blueprints**; on accept they are applied to the new Workspace in order (Attachments union; later Blueprints win on any single-valued pointer-setting). Members do not create their own Workspaces.
 - Authority over configuration runs **Operator** → **Org Admin** → **Workspace Owner**; each tier is bounded by the tier above it.
 
 ## Example dialogue

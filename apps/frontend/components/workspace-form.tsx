@@ -85,6 +85,19 @@ const WorkspaceForm = ({
   );
   const members = membersData?.results || [];
 
+  // Owner options for the create form. A super-admin acting on an org they're
+  // not enrolled in (e.g. a brand-new org with no members) won't appear in
+  // /members, but the backend lets them own a workspace by defaulting to
+  // themselves (ADR-0008). Always offer the current user so the "defaults to
+  // you" default resolves to a real, selectable option.
+  const ownerOptions =
+    user && !members.some((m) => m.userId === user.id)
+      ? [
+          { userId: user.id, user: { name: user.name, email: user.email } },
+          ...members,
+        ]
+      : members;
+
   const [formData, setFormData] = useState(() => ({
     name: "",
     context: "",
@@ -294,7 +307,7 @@ const WorkspaceForm = ({
                   <SelectValue placeholder="Select an owner" />
                 </SelectTrigger>
                 <SelectContent>
-                  {members.map((m) => (
+                  {ownerOptions.map((m) => (
                     <SelectItem key={m.userId} value={m.userId}>
                       {m.user.name || m.user.email}
                       {m.userId === user?.id ? " (you)" : ""}

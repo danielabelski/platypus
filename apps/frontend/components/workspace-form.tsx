@@ -85,17 +85,20 @@ const WorkspaceForm = ({
   );
   const members = membersData?.results || [];
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     name: "",
     context: "",
-    ownerId: "" as string,
+    // Default the owner to the current user when creating. The session is
+    // usually cached, so `user` is available synchronously on first render;
+    // the useResetOnChange below covers the case where it loads later.
+    ownerId: (!workspaceId && user?.id) || ("" as string),
     taskModelProviderId: null as string | null,
     memoryExtractionProviderId: null as string | null,
     memoryEmbeddingProviderId: null as string | null,
     maxDailySummaries: 90,
     providerSelfManagement: false,
     mcpSelfManagement: false,
-  });
+  }));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>

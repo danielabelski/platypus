@@ -33,7 +33,21 @@ const footer = (
 const RootLayout: FC<{ children: ReactNode }> = async ({ children }) => {
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
-      <Head />
+      {/*
+       * Brand cohesion with apps/frontend (ADR-0011): Nextra's <Head> injects an
+       * inline <style> that drives the accent from these HSL values, overriding
+       * any CSS. The frontend's green `--primary` (oklch 0.488 0.243 180) is
+       * hsl(166 100% 26%) — express it here so links/nav/rings render green, not
+       * Nextra's default blue (hue 212/204). Lightness is bumped in dark mode for
+       * legibility.
+       */}
+      <Head
+        color={{
+          hue: 166,
+          saturation: 100,
+          lightness: { light: 30, dark: 45 },
+        }}
+      />
       <body>
         <Layout
           navbar={navbar}

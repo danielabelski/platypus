@@ -23,11 +23,7 @@ import {
   retrieveRecentSummaries,
   type MemorySummary,
 } from "./memory-retrieval.ts";
-import type {
-  ChatSubmitData as ChatSubmitDataSchema,
-  Provider,
-  Skill,
-} from "@platypus/schemas";
+import type { Provider, Skill } from "@platypus/schemas";
 import type { Tool } from "ai";
 import { logger } from "../logger.ts";
 import { buildMcpTransportConfig } from "./mcp-oauth-provider.ts";
@@ -85,7 +81,13 @@ type GenerationConfig = {
   skills?: Array<Pick<Skill, "name" | "description">>;
 };
 
-type ChatSubmitData = {
+/**
+ * The slim request shape `prepareChatTurn` actually consumes: agent/provider
+ * selection plus generation overrides. Distinct from `@platypus/schemas`'
+ * `ChatSubmitData` (the HTTP payload, which also carries id/workspaceId/
+ * messages) — those arrive as separate `PrepareChatTurnInput` fields.
+ */
+export type ChatTurnRequest = {
   agentId?: string;
   providerId?: string;
   modelId?: string;
@@ -132,7 +134,7 @@ export type PrepareChatTurnInput = {
   orgId: string;
   workspaceId: string;
   user: { id: string; name: string };
-  request: ChatSubmitDataSchema;
+  request: ChatTurnRequest;
   messages: PlatypusUIMessage[];
   /**
    * Used to rewrite `storage://` URLs in messages to absolute HTTP URLs so
@@ -515,11 +517,7 @@ export const prepareChatTurn = async (
     runMode,
   };
 
-  const generation = resolveGenerationConfig(
-    request,
-    agent,
-    promptCtx,
-  );
+  const generation = resolveGenerationConfig(request, agent, promptCtx);
 
   if (skills.length > 0) {
     tools.loadSkill = createLoadSkillTool(orgId, workspaceId);
@@ -728,7 +726,7 @@ const wrapToolsWithBump = (
 
 const resolveChatContext = async (
   queries: ChatTurnQueries,
-  data: ChatSubmitData,
+  data: ChatTurnRequest,
   orgId: string,
   workspaceId: string,
 ): Promise<ChatContext> => {
@@ -849,7 +847,7 @@ const loadTools = async (
 };
 
 const resolveGenerationConfig = (
-  data: ChatSubmitData,
+  data: ChatTurnRequest,
   agent: AgentRow | undefined,
   promptCtx: SystemPromptContext,
 ): GenerationConfig => {

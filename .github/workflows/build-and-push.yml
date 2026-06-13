@@ -8,7 +8,12 @@ permissions:
   contents: read
 
 jobs:
+  # Gate: lint must pass before any image is built or pushed.
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   build-and-push:
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

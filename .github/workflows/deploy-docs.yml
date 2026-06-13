@@ -15,7 +15,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Gate: lint must pass before the docs are built and deployed.
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   deploy-docs:
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -27,7 +32,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install dependencies

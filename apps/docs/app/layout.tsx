@@ -27,6 +27,14 @@ export const metadata: Metadata = {
     description,
     url: "/",
     locale: "en_US",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Platypus — build and manage AI agents with tool support and multi-provider capabilities.",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
@@ -35,6 +43,7 @@ export const metadata: Metadata = {
       template: `%s | ${title}`,
     },
     description,
+    images: ["/og.png"],
   },
 };
 

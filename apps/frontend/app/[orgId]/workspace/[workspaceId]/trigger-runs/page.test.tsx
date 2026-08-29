@@ -470,6 +470,46 @@ describe("Trigger runs stats", () => {
     expect(screen.getByText(/100 in \/ 4\.1K out/)).toBeInTheDocument();
   });
 
+  // Issue #734. The cached-input breakdown reads through a tooltip and must
+  // not change what the visible `in` figure means — the input already includes
+  // cached tokens.
+  describe("cached-input breakdown", () => {
+    it("shows the read and write counts in a tooltip on the token line", async () => {
+      await renderRuns([
+        run({
+          stats: stats({ cacheReadTokens: 2_700, cacheWriteTokens: 150 }),
+        }),
+      ]);
+
+      expect(screen.getByText(/100 in \/ 4\.1K out/)).toBeInTheDocument();
+      fireEvent.focus(screen.getByText(/100 in \/ 4\.1K out/));
+
+      expect(
+        await screen.findByText("of which 2.7K read from cache"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("of which 150 written to cache"),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the token figures unchanged beside the breakdown", async () => {
+      await renderRuns([
+        run({
+          stats: stats({ cacheReadTokens: 2_700, cacheWriteTokens: 150 }),
+        }),
+      ]);
+
+      expect(screen.getByText(/100 in \/ 4\.1K out/)).toBeInTheDocument();
+    });
+
+    it("renders no cache tooltip where the Provider reported no cache detail", async () => {
+      await renderRuns([run()]);
+
+      expect(screen.queryByText(/read from cache/)).toBeNull();
+      expect(screen.queryByText(/written to cache/)).toBeNull();
+    });
+  });
+
   it("shows the run's status, timing and event type", async () => {
     await renderRuns([run({ status: "failed", eventType: "card.created" })]);
 

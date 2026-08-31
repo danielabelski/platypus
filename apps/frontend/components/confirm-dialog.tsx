@@ -10,15 +10,17 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useResetOnChange } from "@/hooks/use-reset-on-change";
 
 interface ConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
+  description: ReactNode;
   confirmLabel?: string;
+  // Shown on the confirm button in place of confirmLabel while loading is true.
+  loadingLabel?: string;
   confirmVariant?: "default" | "destructive" | "outline" | "ghost";
   cancelLabel?: string;
   onConfirm: () => void;
@@ -36,6 +38,7 @@ export const ConfirmDialog = ({
   title,
   description,
   confirmLabel = "Confirm",
+  loadingLabel,
   confirmVariant = "default",
   cancelLabel = "Cancel",
   onConfirm,
@@ -112,7 +115,7 @@ export const ConfirmDialog = ({
             onClick={onConfirm}
             disabled={loading || !phraseMatches}
           >
-            {confirmLabel}
+            {loading && loadingLabel ? loadingLabel : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

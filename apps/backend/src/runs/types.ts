@@ -1,4 +1,5 @@
 import type { PlatypusUIMessage } from "../types.ts";
+import type { CachedInputTokens } from "@platypus/schemas";
 import type { WorkspaceScope } from "../scope.ts";
 import type { RunTimeouts } from "./run-registry.ts";
 
@@ -55,27 +56,19 @@ export type ParentRunContext = {
 
 export type RunStatus = "running" | "succeeded" | "failed" | "cancelled";
 
+/**
+ * What a run reports about itself. Intersected with `CachedInputTokens`, whose
+ * pair is the cached-input breakdown of `inputTokens` (issue #734), summed
+ * across the run's model calls the same way that figure is — absent where the
+ * Provider reported no cached reads (or writes) on any step, with `0` kept as
+ * the genuine measurement it is.
+ */
 export type RunStats = {
   steps?: number;
   toolCalls?: Array<{ name: string; count: number }>;
   /** Cross-step SUMS of every step's usage — billing figures, not occupancy. */
   inputTokens?: number;
   outputTokens?: number;
-  /**
-   * Cached input tokens READ across the run's model calls, summed the same way
-   * `inputTokens` is (issue #734). A breakdown of that figure, which already
-   * includes cached tokens — never subtracted. Absent where the Provider never
-   * reported a cached-read count; nothing is estimated, and 0 is never
-   * substituted (it would read as a measurement of no cached reads).
-   */
-  cacheReadTokens?: number;
-  /**
-   * Cached input tokens the run's model calls caused to be WRITTEN, summed as
-   * above. Optional for the same reason, and only present where the Provider
-   * reports a write count at all — OpenAI and Google cache implicitly and
-   * report none (issue #734).
-   */
-  cacheWriteTokens?: number;
   /**
    * How full the model's context got: the input tokens reported for the LAST
    * step, which is the whole conversation as last sent (ADR-0018). A last
@@ -101,7 +94,7 @@ export type RunStats = {
    * step on a low ceiling.
    */
   stoppedAtStepLimit?: true;
-};
+} & CachedInputTokens;
 
 /**
  * Inputs for a single run. `request` is the same shape `prepareChatTurn`

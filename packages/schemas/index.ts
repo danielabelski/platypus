@@ -1950,6 +1950,51 @@ export const triggerRunStatusSchema = z.enum([
 
 export type TriggerRunStatus = z.infer<typeof triggerRunStatusSchema>;
 
+/**
+ * How each run status is written wherever a User reads one — the row badge and
+ * the page's status filter. Keyed by the status type, so a status added to the
+ * domain fails the typecheck rather than rendering raw.
+ */
+export const TRIGGER_RUN_STATUS_LABELS: Record<TriggerRunStatus, string> = {
+  pending: "Pending",
+  running: "Running",
+  success: "Success",
+  failed: "Failed",
+};
+
+/**
+ * A Provider's cached-input breakdown of an input-token figure (issue #734):
+ * how many of the input tokens were READ from cache, and how many the model
+ * calls caused to be WRITTEN. A breakdown of the figure, never subtracted from
+ * it.
+ *
+ * Both keys optional following the rule `contextOccupancy` sets below: a
+ * Provider that reports nothing persists no key, because `0` reads as a
+ * measurement rather than "unknown".
+ *
+ * The single declaration of the pair — spread into `triggerRunStatsSchema` and
+ * inferred as `CachedInputTokens`, so the schema and the type cannot drift
+ * apart (issue #745).
+ */
+export const cachedInputTokensShape = {
+  /**
+   * Cached input tokens READ across the model calls, summed the same way the
+   * input figure beside it is. A breakdown of that figure, which already
+   * includes cached tokens — never subtracted.
+   */
+  cacheReadTokens: z.number().int().nonnegative().optional(),
+  /**
+   * Cached input tokens the model calls caused to be WRITTEN, summed as above.
+   * Only present where the Provider reports a write count — OpenAI and Google
+   * cache implicitly and report none.
+   */
+  cacheWriteTokens: z.number().int().nonnegative().optional(),
+};
+
+export type CachedInputTokens = z.infer<
+  z.ZodObject<typeof cachedInputTokensShape>
+>;
+
 export const triggerRunStatsSchema = z.object({
   steps: z.number(),
   toolCalls: z.array(z.object({ name: z.string(), count: z.number() })),
@@ -1959,21 +2004,7 @@ export const triggerRunStatsSchema = z.object({
   // number an Operator already reads (ADR-0018).
   inputTokens: z.number(),
   outputTokens: z.number(),
-  /**
-   * Cached input tokens READ across the run's model calls, summed the same way
-   * `inputTokens` is (issue #734). A breakdown of that figure, which already
-   * includes cached tokens — never subtracted. Optional following the pattern
-   * `contextOccupancy` sets here: a non-negative integer, absent meaning
-   * unknown (the Provider never reported one).
-   */
-  cacheReadTokens: z.number().int().nonnegative().optional(),
-  /**
-   * Cached input tokens the run's model calls caused to be WRITTEN, summed as
-   * above. Optional for the same reason, and only present where the Provider
-   * reports a write count at all — OpenAI and Google cache implicitly and
-   * report none (issue #734).
-   */
-  cacheWriteTokens: z.number().int().nonnegative().optional(),
+  ...cachedInputTokensShape,
   /**
    * How full the model's context got: the input tokens reported for the FINAL
    * step of the run, which is the whole conversation as last sent. A last

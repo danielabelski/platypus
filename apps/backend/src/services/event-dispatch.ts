@@ -9,7 +9,10 @@ import { executeTrigger } from "./trigger-execution.ts";
 import { updateTriggerAfterRun } from "./trigger-execution.ts";
 import { debounceTriggerExecution } from "./event-trigger-debounce.ts";
 import { logger } from "../logger.ts";
-import { currentCausingAgents } from "../event-causation.ts";
+import {
+  currentCausingAgents,
+  currentOriginatingTrigger,
+} from "../event-causation.ts";
 import type { WebhookEvent, EventTriggerConfig } from "@platypus/schemas";
 
 /**
@@ -45,6 +48,36 @@ export function dispatchEvent(
   // persisted attribution column (e.g. `lastEditedByAgentId`), which is sticky
   // and would cause false-negatives on later human edits.
   const causingAgents = currentCausingAgents();
+  // The Trigger whose run produced this write, when one did. Recorded, not
+  // acted on: the guard below still compares Agent ids (#669). Read here for
+  // the same reason as the chain — the async body needs a stable view.
+  const originatingTriggerId = currentOriginatingTrigger();
+
+  /**
+   * Records what dispatch decided about one candidate Trigger. A suppressed or
+   * coalesced dispatch leaves no other trace, so a Trigger loop on a
+   * self-hosted install is otherwise undiagnosable (#812).
+   *
+   * Identifiers only — `data` carries Card titles and bodies, which are the
+   * Operator's users' content. The ids are what diagnosis needs.
+   */
+  const logDecision = (
+    trigger: { id: string; agentId: string | null },
+    decision: "fired" | "skipped_self_actor" | "debounced",
+  ): void => {
+    logger.info(
+      {
+        event,
+        workspaceId,
+        triggerId: trigger.id,
+        triggerAgentId: trigger.agentId,
+        causingAgents,
+        originatingTriggerId,
+        decision,
+      },
+      "Event trigger dispatch decision",
+    );
+  };
 
   // Fire-and-forget — never awaited by the caller
   void (async () => {
@@ -95,16 +128,12 @@ export function dispatchEvent(
         const triggerConfig = trigger.config as EventTriggerConfig;
         if (!triggerConfig.events.includes(event)) continue;
 
-        // Self-actor guard: skip when the agent that caused this event is the
-        // very same agent this trigger would run — or a delegate beneath it, at
-        // any depth. This stops an agent's own card writes (through any of its
-        // Sub-Agents) from re-firing the trigger that started it (#267, #668).
-        // Human-originated events carry an empty chain, so they always pass.
-        if (trigger.agentId && causingAgents.includes(trigger.agentId)) {
-          continue;
-        }
-
-        // Apply event filters
+        // Apply event filters. Evaluated before the self-actor guard so that a
+        // logged decision always describes a Trigger this event actually
+        // selected: a filtered-out Trigger is not a candidate and reports
+        // nothing, which is what lets a reader tell a filter mismatch from a
+        // suppressed dispatch. Both paths skip the Trigger either way, so the
+        // order is a logging distinction only.
         if (triggerConfig.filters?.boardId) {
           const eventData = data as Record<string, unknown>;
           if (eventData.boardId !== triggerConfig.filters.boardId) continue;
@@ -131,6 +160,16 @@ export function dispatchEvent(
           }
         }
 
+        // Self-actor guard: skip when the agent that caused this event is the
+        // very same agent this trigger would run — or a delegate beneath it, at
+        // any depth. This stops an agent's own card writes (through any of its
+        // Sub-Agents) from re-firing the trigger that started it (#267, #668).
+        // Human-originated events carry an empty chain, so they always pass.
+        if (trigger.agentId && causingAgents.includes(trigger.agentId)) {
+          logDecision(trigger, "skipped_self_actor");
+          continue;
+        }
+
         // Debounce per trigger+entity to coalesce rapid events. Only the
         // row-spreading events (`card.created`/`updated`/`moved`,
         // `notification.created`/`updated`) carry a top-level `id`; the rest
@@ -146,7 +185,7 @@ export function dispatchEvent(
           SHARED_BUCKET;
         const debounceKey = `${trigger.id}:${entityId}`;
 
-        debounceTriggerExecution(
+        const coalesced = debounceTriggerExecution(
           debounceKey,
           trigger,
           { eventType: event, eventData: data },
@@ -166,6 +205,11 @@ export function dispatchEvent(
             }
           },
         );
+
+        // `fired` means scheduled: the run starts when the debounce window
+        // closes. A later event on the same window reports itself `debounced`,
+        // so the pair reads as one run rather than two.
+        logDecision(trigger, coalesced ? "debounced" : "fired");
       }
     } catch (error) {
       logger.error(

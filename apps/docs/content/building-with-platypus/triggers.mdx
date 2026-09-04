@@ -249,6 +249,26 @@ it is absent for a Provider that reports no cache detail.
   Agent has those tool sets granted.
 </Callout>
 
+### Why a Trigger didn't run
+
+A run that never happened leaves no row in **Trigger runs**, so the answer is in
+the backend logs. Every time an event reaches a Trigger that subscribes to it,
+Platypus writes one dispatch decision line naming the event, the Trigger, the
+Trigger's Agent, the Agents that were running when the write happened, and one of
+three outcomes:
+
+- `fired` — the run is scheduled, and starts once the debounce window closes.
+- `skipped_self_actor` — the Trigger's own Agent (or one of its Sub-Agents) made
+  the write, so running it again would loop.
+- `debounced` — a run was already pending for the same Trigger and record, and
+  this event folded into it. A separate line reports how many events a burst
+  coalesced.
+
+A Trigger the event didn't select — the wrong event type, or filters that didn't
+match — writes no line at all. So the absence of a decision is how you tell a
+filter problem from a suppressed run. The lines name identifiers only, never Card
+titles or body text.
+
 ## When a run stops early
 
 Every model has a ceiling on how much it can write in one reply. A run that

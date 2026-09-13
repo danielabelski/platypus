@@ -160,6 +160,11 @@ const SET_LIKE_FIELDS = new Set<string>(["labelIds", "assignees"]);
 
 /** A field's value, reduced to a form where `===`-by-JSON is the right test. */
 const comparableFieldValue = (key: string, value: unknown): unknown => {
+  // A Card with no description stores `null`, but a form bound to an empty
+  // editor sends `""`. They mean the same thing, so they must compare equal —
+  // otherwise saving an unrelated field from an open Card reports a
+  // description edit nobody made.
+  if (key === "body" && value === "") return null;
   if (value === undefined || value === null) return value;
   if (key === "labelIds") return [...(value as string[])].sort();
   if (key === "assignees") {

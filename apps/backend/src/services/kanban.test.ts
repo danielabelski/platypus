@@ -345,6 +345,12 @@ describe("kanban module", () => {
       ).toEqual(["body"]);
     });
 
+    it("does not report body when an empty editor echoes a null body back", () => {
+      const empty: CardRow = { ...baseCard, body: null };
+      expect(changedCardFields(empty, { ...empty, body: "" })).toEqual([]);
+      expect(changedCardFields({ ...empty, body: "" }, empty)).toEqual([]);
+    });
+
     it("does not report labelIds when the same set arrives in a different order", () => {
       expect(
         changedCardFields(baseCard, {

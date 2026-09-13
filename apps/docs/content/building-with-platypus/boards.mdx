@@ -60,7 +60,8 @@ Click a card to open its detail dialog, where you can edit:
   Agent_.
 - **Comments** — a threaded discussion on the card (also Markdown).
 
-Below the comments, **History** lists how the card got here — newest first.
+Below the comments, **History** lists how the card got here — newest first. It
+starts collapsed; click it to open.
 
 <Callout type="info">
   Cards record who created and last edited them — and that can be an **Agent**,
@@ -113,7 +114,7 @@ acting on a stale reading of the board is refused and told to look again.
 
 Every card keeps a short record of how it reached its current state: who moved
 it, who changed its labels, priority, due date, title or assignee, and when.
-Open a card and read **History** at the bottom of the dialog.
+Open a card and click **History** at the bottom of the dialog.
 
 One write is one entry, however many fields it touched — an Agent that retitles
 a card and bumps its priority in a single edit leaves one line, not two.
@@ -131,11 +132,11 @@ Two things it deliberately does not record:
   name it had at the time.
 
 <Callout type="warning">
-  A card keeps its **50 most recent** entries. Past that, the oldest are
-  dropped — permanently, and with no copy kept anywhere. Treating History as an
-  audit trail is the trap: it is there to tell whoever picks the card up next
-  how it got here, and a busy card outruns it. If you need a durable record of
-  board activity, send `card.*` events to a
+  A card keeps its **50 most recent** entries. Past that, the oldest are dropped
+  — permanently, and with no copy kept anywhere. Treating History as an audit
+  trail is the trap: it is there to tell whoever picks the card up next how it
+  got here, and a busy card outruns it. If you need a durable record of board
+  activity, send `card.*` events to a
   [Webhook](/building-with-platypus/webhooks) and keep them your side. Deleting
   a card deletes its history with it.
 </Callout>

@@ -36,10 +36,9 @@ import {
   UserRound,
 } from "lucide-react";
 import { type Skill, type Agent } from "@platypus/schemas";
-import useSWR from "swr";
-import { fetcher, joinUrl } from "@/lib/utils";
+import { useScopedSWR } from "@/hooks/use-scoped-swr";
 import Link from "next/link";
-import { useAuth, useBackendUrl } from "@/components/auth-provider";
+import { useAuth } from "@/components/auth-provider";
 import {
   canManageOrgSharedResource,
   canManageSharedResource,
@@ -54,7 +53,7 @@ import {
   DetachSharedDialog,
   PromoteSharedDialog,
 } from "@/components/shared-resource-actions";
-import { scopedPath, writeEntity, type Scope } from "@/lib/api-write";
+import { writeEntity, type Scope } from "@/lib/api-write";
 import {
   usePromoteShared,
   useSharedDeleteGuard,
@@ -123,8 +122,7 @@ export const SkillsList = ({
   orgId: string;
   workspaceId?: string;
 }) => {
-  const { user, actor } = useAuth();
-  const backendUrl = useBackendUrl();
+  const { actor } = useAuth();
   const [skillToManage, setSkillToManage] = useState<SkillWithScope | null>(
     null,
   );
@@ -133,7 +131,6 @@ export const SkillsList = ({
   // below, rather than re-deriving the Organization-vs-Workspace branch at
   // each call site.
   const scope: Scope = workspaceId ? { orgId, workspaceId } : { orgId };
-  const listUrl = scopedPath("skills", scope);
   const editBasePath = workspaceId
     ? `/${orgId}/workspace/${workspaceId}/skills`
     : `/${orgId}/settings/skills`;
@@ -143,19 +140,14 @@ export const SkillsList = ({
     error,
     isLoading,
     mutate,
-  } = useSWR<{
+  } = useScopedSWR<{
     results: SkillWithScope[];
-  }>(backendUrl && user ? joinUrl(backendUrl, listUrl) : null, fetcher);
+  }>("skills", scope);
 
   // Agent associations are a workspace concern; only fetched on that surface.
-  const { data: agentsData } = useSWR<{
+  const { data: agentsData } = useScopedSWR<{
     results: Agent[];
-  }>(
-    backendUrl && user && workspaceId
-      ? joinUrl(backendUrl, scopedPath("agents", scope))
-      : null,
-    fetcher,
-  );
+  }>("agents", workspaceId ? scope : null);
 
   const agents = agentsData?.results || [];
 

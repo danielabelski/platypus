@@ -14,6 +14,7 @@ import { useBackendUrl } from "@/components/auth-provider";
 import { writeEntity } from "@/lib/api-write";
 import type { Dashboard } from "@platypus/schemas";
 import { toast } from "sonner";
+import { workspaceRoutes } from "@/lib/routes";
 
 const DashboardSettingsPage = ({
   params,
@@ -25,6 +26,7 @@ const DashboardSettingsPage = ({
   }>;
 }) => {
   const { orgId, workspaceId, dashboardId } = use(params);
+  const routes = workspaceRoutes(orgId, workspaceId);
   const backendUrl = useBackendUrl();
   const router = useRouter();
 
@@ -85,7 +87,7 @@ const DashboardSettingsPage = ({
       { id: dashboardId },
     );
     if (outcome.outcome === "success") {
-      router.push(`/${orgId}/workspace/${workspaceId}`);
+      router.push(routes.root);
     } else {
       toast.error(outcome.message);
       setDeleting(false);
@@ -99,7 +101,7 @@ const DashboardSettingsPage = ({
 
   return (
     <ResourcePage
-      backFallbackHref={`/${orgId}/workspace/${workspaceId}/dashboards/${dashboardId}`}
+      backFallbackHref={routes.dashboards.detail(dashboardId)}
       title="Dashboard Settings"
       variant="stacked"
     >

@@ -31,6 +31,7 @@ import { DeleteBlockedDialog } from "@/components/shared-resource-actions";
 import Link from "next/link";
 import { writeEntity, type Scope } from "@/lib/api-write";
 import { useDeleteFlow } from "@/hooks/use-delete-flow";
+import { orgRoutes } from "@/lib/routes";
 import { useSharedDeleteGuard } from "@/hooks/use-shared-resource-actions";
 
 // The Organization surface for Shared Agents (ADR-0007): Org Admins see and
@@ -140,7 +141,7 @@ export const OrgAgentsList = ({ orgId }: { orgId: string }) => {
                       <DropdownMenuItem asChild>
                         <Link
                           className="cursor-pointer"
-                          href={`/${orgId}/settings/agents/${agent.id}`}
+                          href={orgRoutes(orgId).settings.agentDetail(agent.id)}
                         >
                           <Pencil /> Edit
                         </Link>

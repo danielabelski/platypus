@@ -12,6 +12,7 @@ import { ResourcePage } from "@/components/resource-page";
 import { KanbanBoardForm } from "@/components/kanban-board-form";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
+import { workspaceRoutes } from "@/lib/routes";
 
 const BoardSettingsPage = ({
   params,
@@ -19,6 +20,7 @@ const BoardSettingsPage = ({
   params: Promise<{ orgId: string; workspaceId: string; boardId: string }>;
 }) => {
   const { orgId, workspaceId, boardId } = use(params);
+  const routes = workspaceRoutes(orgId, workspaceId);
   const backendUrl = useBackendUrl();
   const router = useRouter();
   const { mutate: globalMutate } = useSWRConfig();
@@ -41,7 +43,7 @@ const BoardSettingsPage = ({
 
     await applyDeleteOutcome(result, {
       mutate: globalMutate,
-      onSuccess: () => router.push(`/${orgId}/workspace/${workspaceId}`),
+      onSuccess: () => router.push(routes.root),
       onError: (message) => {
         toast.error(message);
         setIsDeleting(false);
@@ -61,7 +63,7 @@ const BoardSettingsPage = ({
 
   return (
     <ResourcePage
-      backFallbackHref={`/${orgId}/workspace/${workspaceId}/boards/${boardId}`}
+      backFallbackHref={routes.boards.detail(boardId)}
       title="Board Settings"
       variant="stacked"
     >

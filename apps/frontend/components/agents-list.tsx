@@ -71,6 +71,7 @@ import {
   useSharedDetach,
 } from "@/hooks/use-shared-resource-actions";
 import { useDeleteFlow } from "@/hooks/use-delete-flow";
+import { orgRoutes, workspaceRoutes } from "@/lib/routes";
 
 // The Agent is shown either in a Workspace, where it may be a workspace-scoped
 // Agent or an attached org-scoped (Shared) Agent rendered with an Organization
@@ -96,6 +97,7 @@ export const AgentsList = ({
   // below, rather than re-deriving the Organization-vs-Workspace branch at
   // each call site.
   const scope: Scope = { orgId, workspaceId };
+  const routes = workspaceRoutes(orgId, workspaceId);
 
   const {
     data: agentsData,
@@ -211,9 +213,7 @@ export const AgentsList = ({
       setCloneDialogOpen(false);
       setAgentToClone(null);
       setCloneName("");
-      router.push(
-        `/${orgId}/workspace/${workspaceId}/agents/${outcome.data.id}`,
-      );
+      router.push(routes.agents.detail(outcome.data.id));
     } else {
       setCloneError(outcome.message);
     }
@@ -249,7 +249,7 @@ export const AgentsList = ({
               <DropdownMenuItem asChild>
                 <Link
                   className="cursor-pointer"
-                  href={`/${orgId}/settings/agents/${agent.id}`}
+                  href={orgRoutes(orgId).settings.agentDetail(agent.id)}
                 >
                   <Pencil /> Edit in org settings
                 </Link>
@@ -267,7 +267,7 @@ export const AgentsList = ({
             <DropdownMenuItem asChild>
               <Link
                 className="cursor-pointer"
-                href={`/${orgId}/workspace/${workspaceId}/agents/${agent.id}`}
+                href={routes.agents.detail(agent.id)}
               >
                 <Pencil /> Edit
               </Link>
@@ -425,9 +425,7 @@ export const AgentsList = ({
                   </ItemContent>
                   <ItemActions className="hidden xl:flex">
                     <Button size="sm" asChild>
-                      <Link
-                        href={`/${orgId}/workspace/${workspaceId}/chat?agentId=${agent.id}`}
-                      >
+                      <Link href={routes.chat.forAgent(agent.id)}>
                         <BotMessageSquare /> New chat
                       </Link>
                     </Button>
@@ -450,9 +448,7 @@ export const AgentsList = ({
                   </ItemActions>
                   <ItemFooter className="xl:hidden mt-0 pl-16">
                     <Button size="sm" asChild>
-                      <Link
-                        href={`/${orgId}/workspace/${workspaceId}/chat?agentId=${agent.id}`}
-                      >
+                      <Link href={routes.chat.forAgent(agent.id)}>
                         <BotMessageSquare /> New chat
                       </Link>
                     </Button>
@@ -482,7 +478,7 @@ export const AgentsList = ({
 
       <div className="mt-4 flex gap-2">
         <Button variant="outline" asChild>
-          <Link href={`/${orgId}/workspace/${workspaceId}/agents/create`}>
+          <Link href={routes.agents.create}>
             <Plus /> Create agent
           </Link>
         </Button>

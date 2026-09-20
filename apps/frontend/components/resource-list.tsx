@@ -12,6 +12,7 @@ import {
   type WorkspaceDelegationFlags,
 } from "@/lib/authorization";
 import { type Scope } from "@/lib/api-write";
+import { orgRoutes, workspaceRoutes } from "@/lib/routes";
 import { useSharedDetach } from "@/hooks/use-shared-resource-actions";
 import { ListError, ListState } from "./list-state";
 import { Item, ItemActions, ItemContent, ItemTitle } from "./ui/item";
@@ -52,8 +53,8 @@ export interface ResourceListConfig {
   readonly entity: string;
   /** Which Shared resource this is — names the attach/detach endpoints (ADR-0007). */
   readonly resourceType: DelegatableResourceType;
-  /** Settings route for the resource's own pages: "settings/providers" / "settings/mcp". */
-  readonly settingsPath: string;
+  /** Which settings route the resource's own pages live under (`lib/routes`). */
+  readonly settingsKey: "providers" | "mcp";
   /** The Workspace delegation flag granting self-management (ADR-0006). */
   readonly delegationFlag: keyof WorkspaceDelegationFlags;
   readonly labels: ResourceListLabels;
@@ -134,12 +135,11 @@ export const ResourceList = ({
 
   // The resource's own settings surface, with any trailing segment: a row's
   // detail page, or its create page.
-  const settingsHref = (segment: string) =>
-    `${
-      workspaceId
-        ? `/${orgId}/workspace/${workspaceId}/${config.settingsPath}`
-        : `/${orgId}/${config.settingsPath}`
-    }/${segment}`;
+  const orgSettingsRoot = orgRoutes(orgId).settings[config.settingsKey];
+  const settingsRoot = workspaceId
+    ? workspaceRoutes(orgId, workspaceId).settings[config.settingsKey]
+    : orgSettingsRoot;
+  const settingsHref = (segment: string) => `${settingsRoot}/${segment}`;
 
   return (
     <>
@@ -211,9 +211,7 @@ export const ResourceList = ({
           </>
         )}
         canDetach={canAttach}
-        orgSettingsHref={(selected) =>
-          `/${orgId}/${config.settingsPath}/${selected.id}`
-        }
+        orgSettingsHref={(selected) => `${orgSettingsRoot}/${selected.id}`}
       />
     </>
   );

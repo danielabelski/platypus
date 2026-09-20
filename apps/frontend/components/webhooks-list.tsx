@@ -5,6 +5,7 @@ import { useScopedSWR } from "@/hooks/use-scoped-swr";
 import { Pencil, Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui/button";
+import { workspaceRoutes } from "@/lib/routes";
 
 interface Webhook {
   id: string;
@@ -21,6 +22,8 @@ const WebhooksList = ({
   orgId: string;
   workspaceId: string;
 }) => {
+  const routes = workspaceRoutes(orgId, workspaceId);
+
   const { data, error, isLoading } = useScopedSWR<{ results: Webhook[] }>(
     "webhooks",
     { orgId, workspaceId },
@@ -38,9 +41,7 @@ const WebhooksList = ({
           No webhooks configured for this workspace.
         </p>
         <Button asChild>
-          <Link
-            href={`/${orgId}/workspace/${workspaceId}/settings/webhooks/create`}
-          >
+          <Link href={routes.settings.createWebhook}>
             <Plus /> Add webhook
           </Link>
         </Button>
@@ -54,9 +55,7 @@ const WebhooksList = ({
         {webhooks.map((webhook) => (
           <li key={webhook.id} className="mb-2">
             <Item variant="outline" asChild>
-              <Link
-                href={`/${orgId}/workspace/${workspaceId}/settings/webhooks/${webhook.id}`}
-              >
+              <Link href={routes.settings.webhookDetail(webhook.id)}>
                 <ItemContent>
                   <div className="flex items-center gap-2">
                     <ItemTitle>{webhook.name}</ItemTitle>
@@ -79,9 +78,7 @@ const WebhooksList = ({
         ))}
       </ul>
       <Button asChild>
-        <Link
-          href={`/${orgId}/workspace/${workspaceId}/settings/webhooks/create`}
-        >
+        <Link href={routes.settings.createWebhook}>
           <Plus /> Add webhook
         </Link>
       </Button>

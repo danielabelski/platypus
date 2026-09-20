@@ -60,6 +60,7 @@ import {
   useSharedDetach,
 } from "@/hooks/use-shared-resource-actions";
 import { useDeleteFlow } from "@/hooks/use-delete-flow";
+import { orgRoutes, workspaceRoutes } from "@/lib/routes";
 
 // The list serves two surfaces: a Workspace (workspaceId provided) where it
 // shows workspace-scoped Skills plus attached org-scoped Shared Skills as
@@ -132,8 +133,8 @@ export const SkillsList = ({
   // each call site.
   const scope: Scope = workspaceId ? { orgId, workspaceId } : { orgId };
   const editBasePath = workspaceId
-    ? `/${orgId}/workspace/${workspaceId}/skills`
-    : `/${orgId}/settings/skills`;
+    ? workspaceRoutes(orgId, workspaceId).skills.root
+    : orgRoutes(orgId).settings.skills;
 
   const {
     data: skillsData,
@@ -379,7 +380,7 @@ export const SkillsList = ({
         )}
         canDetach={canAttach}
         orgSettingsHref={(selected) =>
-          `/${orgId}/settings/skills/${selected.id}`
+          orgRoutes(orgId).settings.skillDetail(selected.id)
         }
       />
 

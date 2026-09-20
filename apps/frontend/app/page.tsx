@@ -19,6 +19,7 @@ import {
 import { useAuth, useBackendUrl } from "@/components/auth-provider";
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { orgRoutes } from "@/lib/routes";
 
 export default function Home() {
   const { user, isAuthLoading: isAuthLoadingUser } = useAuth();
@@ -34,7 +35,7 @@ export default function Home() {
   // Redirect to first organization if available
   useEffect(() => {
     if (organizations.length > 0) {
-      router.replace(`/${organizations[0].id}`);
+      router.replace(orgRoutes(organizations[0].id).root);
     }
   }, [organizations, router]);
 

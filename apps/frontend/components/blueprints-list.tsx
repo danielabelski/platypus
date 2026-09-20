@@ -25,9 +25,10 @@ import { useScopedSWR } from "@/hooks/use-scoped-swr";
 import { useDeleteFlow } from "@/hooks/use-delete-flow";
 import Link from "next/link";
 import { ApplyBlueprintDialog } from "@/components/apply-blueprint-dialog";
+import { orgRoutes } from "@/lib/routes";
 
 export const BlueprintsList = ({ orgId }: { orgId: string }) => {
-  const editBasePath = `/${orgId}/settings/blueprints`;
+  const routes = orgRoutes(orgId).settings;
 
   const [blueprintToApply, setBlueprintToApply] = useState<Blueprint | null>(
     null,
@@ -73,7 +74,7 @@ export const BlueprintsList = ({ orgId }: { orgId: string }) => {
                   className="h-full cursor-pointer"
                   asChild
                 >
-                  <Link href={`${editBasePath}/${blueprint.id}`}>
+                  <Link href={routes.blueprintDetail(blueprint.id)}>
                     <ItemContent>
                       <ItemTitle>{blueprint.name}</ItemTitle>
                       {blueprint.description && (
@@ -109,7 +110,7 @@ export const BlueprintsList = ({ orgId }: { orgId: string }) => {
                           <DropdownMenuItem asChild>
                             <Link
                               className="cursor-pointer"
-                              href={`${editBasePath}/${blueprint.id}`}
+                              href={routes.blueprintDetail(blueprint.id)}
                             >
                               <Pencil /> Edit
                             </Link>
@@ -136,7 +137,7 @@ export const BlueprintsList = ({ orgId }: { orgId: string }) => {
 
       <div className="mt-4 flex gap-2">
         <Button variant="outline" asChild>
-          <Link href={`${editBasePath}/create`}>
+          <Link href={routes.createBlueprint}>
             <Plus /> Create blueprint
           </Link>
         </Button>

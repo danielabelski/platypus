@@ -22,6 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetcher } from "@/lib/utils";
 import { mergeRunEvents, nextSinceSeq } from "@/lib/run-timeline";
+import { workspaceRoutes } from "@/lib/routes";
 
 /**
  * How often the page re-reads a run that is still running. Events reach the
@@ -83,7 +84,7 @@ const TriggerRunDetailPage = ({
     },
   );
 
-  const listHref = `/${orgId}/workspace/${workspaceId}/trigger-runs`;
+  const listHref = workspaceRoutes(orgId, workspaceId).triggerRuns.root;
 
   return (
     <div className="flex justify-center pb-8">

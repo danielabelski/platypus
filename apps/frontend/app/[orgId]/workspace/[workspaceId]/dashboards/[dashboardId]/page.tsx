@@ -64,6 +64,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { widgetTypeUi } from "@/components/widgets";
+import { workspaceRoutes } from "@/lib/routes";
 
 // The add-widget picker in registry order. `Object.entries` widens the keys to
 // `string`, so they are put back at their real type here.
@@ -231,6 +232,10 @@ const DashboardPage = ({
   params: Promise<{ orgId: string; workspaceId: string; dashboardId: string }>;
 }) => {
   const { orgId, workspaceId, dashboardId } = use(params);
+  const routes = useMemo(
+    () => workspaceRoutes(orgId, workspaceId),
+    [orgId, workspaceId],
+  );
   const backendUrl = useBackendUrl();
   const scope = useMemo(() => ({ orgId, workspaceId }), [orgId, workspaceId]);
   const widgetsEntity = `dashboards/${dashboardId}/widgets`;
@@ -633,7 +638,7 @@ const DashboardPage = ({
                 .map((d) => (
                   <DropdownMenuItem key={d.id} asChild>
                     <Link
-                      href={`/${orgId}/workspace/${workspaceId}/dashboards/${d.id}`}
+                      href={routes.dashboards.detail(d.id)}
                       className="flex items-center gap-2 cursor-pointer"
                     >
                       <LayoutDashboard className="h-4 w-4" />
@@ -644,7 +649,7 @@ const DashboardPage = ({
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link
-                  href={`/${orgId}/workspace/${workspaceId}/dashboards/create`}
+                  href={routes.dashboards.create}
                   className="flex items-center gap-2 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
@@ -695,7 +700,7 @@ const DashboardPage = ({
                 </Button>
               )}
               <Link
-                href={`/${orgId}/workspace/${workspaceId}/dashboards/${dashboardId}/settings`}
+                href={routes.dashboards.settings(dashboardId)}
                 aria-label="Dashboard settings"
                 className="p-2 hover:bg-muted rounded-md transition-colors shrink-0"
               >

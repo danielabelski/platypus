@@ -30,6 +30,7 @@ const DOCX_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 const origin = "http://localhost:4000";
+const chat = { orgId: "org-1", workspaceId: "ws-1", chatId: "chat-1" };
 
 const attachment = (
   filename: string,
@@ -75,16 +76,12 @@ describe("attachment pipeline (gate → store → inline → normalize)", () => 
     // 1. The pre-persist gate sees the fresh upload's bytes inline.
     await assertFilePartsSupported([message], ["image/*"]);
     // 2. Persistence swaps the data: URL for a storage:// key.
-    const stored = await extractFiles([message], {
-      orgId: "org-1",
-      workspaceId: "ws-1",
-      chatId: "chat-1",
-    });
+    const stored = await extractFiles([message], chat);
     expect((stored[0].parts[1] as unknown as { url: string }).url).toMatch(
       /^storage:\/\//,
     );
     // 3. A later turn replays history: inline, then normalize for the model.
-    const inlined = await inlineFileUrls(stored, origin);
+    const inlined = await inlineFileUrls(stored, origin, chat);
     const [normalized] = await normalizeFileParts(inlined, ["image/*"]);
     return normalized;
   };
@@ -125,11 +122,7 @@ describe("attachment pipeline (gate → store → inline → normalize)", () => 
     /** Turn 1 persists; every later turn replays what the client sent back. */
     const replay = async (message: PlatypusUIMessage, turns: number) => {
       await assertFilePartsSupported([message], ["image/*"]);
-      const stored = await extractFiles([message], {
-        orgId: "org-1",
-        workspaceId: "ws-1",
-        chatId: "chat-1",
-      });
+      const stored = await extractFiles([message], chat);
       const served = rewriteStorageUrls(stored, origin);
       expect((served[0].parts[1] as unknown as { url: string }).url).toBe(
         `${publicUrl}/${(stored[0].parts[1] as unknown as { url: string }).url.slice("storage://".length)}`,
@@ -138,7 +131,7 @@ describe("attachment pipeline (gate → store → inline → normalize)", () => 
       const results: PlatypusUIMessage[] = [];
       for (let turn = 0; turn < turns; turn++) {
         // The client resubmits the history it was served, verbatim.
-        const inlined = await inlineFileUrls(served, origin);
+        const inlined = await inlineFileUrls(served, origin, chat);
         const [normalized] = await normalizeFileParts(inlined, ["image/*"]);
         results.push(normalized);
       }

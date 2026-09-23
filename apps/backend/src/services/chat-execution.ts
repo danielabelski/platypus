@@ -701,7 +701,15 @@ export const prepareChatTurn = async (
       resolvedModelId,
     );
     const inlinedMessages = await normalizeFileParts(
-      origin ? await inlineFileUrls(messages, origin) : messages,
+      origin && run
+        ? await inlineFileUrls(messages, origin, {
+            orgId,
+            workspaceId,
+            // A Chat run's id is its Chat's id — the key prefix `ChatSink`
+            // stored this Chat's files under.
+            chatId: run.runId,
+          })
+        : messages,
       passthroughFileTypes,
       {
         maxExtractedTextChars: maxExtractedTextCharsForModel(

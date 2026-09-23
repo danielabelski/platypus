@@ -245,6 +245,7 @@ describe("Storage Utils", () => {
 
   describe("inlineFileUrls", () => {
     const backendOrigin = "http://localhost:4000";
+    const chat = { orgId: "org-1", workspaceId: "ws-1", chatId: "chat-1" };
 
     it("should inline storage:// URLs as data URLs", async () => {
       // First store a file
@@ -262,7 +263,7 @@ describe("Storage Utils", () => {
       const storedMessages = await extractFiles(messages, context);
 
       // Now inline the storage:// URLs back to data URLs
-      const inlined = await inlineFileUrls(storedMessages, backendOrigin);
+      const inlined = await inlineFileUrls(storedMessages, backendOrigin, chat);
 
       const filePart = inlined[0].parts[1];
       expect((filePart as FileUIPart).url).toMatch(/^data:image\/png;base64,/);
@@ -287,7 +288,7 @@ describe("Storage Utils", () => {
       const httpMessages = rewriteStorageUrls(storedMessages, backendOrigin);
 
       // Now inline them back
-      const inlined = await inlineFileUrls(httpMessages, backendOrigin);
+      const inlined = await inlineFileUrls(httpMessages, backendOrigin, chat);
 
       const filePart = inlined[0].parts[1];
       expect((filePart as FileUIPart).url).toMatch(/^data:image\/png;base64,/);
@@ -299,7 +300,7 @@ describe("Storage Utils", () => {
         createMessageWithFile("msg-1", dataUrl),
       ];
 
-      const inlined = await inlineFileUrls(messages, backendOrigin);
+      const inlined = await inlineFileUrls(messages, backendOrigin, chat);
 
       const filePart = inlined[0].parts[1];
       expect((filePart as FileUIPart).url).toBe(dataUrl);
@@ -311,7 +312,7 @@ describe("Storage Utils", () => {
         createMessageWithFile("msg-1", externalUrl),
       ];
 
-      const inlined = await inlineFileUrls(messages, backendOrigin);
+      const inlined = await inlineFileUrls(messages, backendOrigin, chat);
 
       const filePart = inlined[0].parts[1];
       expect((filePart as FileUIPart).url).toBe(externalUrl);
@@ -322,7 +323,7 @@ describe("Storage Utils", () => {
         { id: "msg-1", role: "user", parts: [] },
       ];
 
-      const inlined = await inlineFileUrls(messages, backendOrigin);
+      const inlined = await inlineFileUrls(messages, backendOrigin, chat);
       expect(inlined).toHaveLength(1);
       expect(inlined[0].parts).toHaveLength(0);
     });
@@ -337,7 +338,7 @@ describe("Storage Utils", () => {
         },
       ];
 
-      const inlined = await inlineFileUrls(messages, backendOrigin);
+      const inlined = await inlineFileUrls(messages, backendOrigin, chat);
 
       const filePart = inlined[0].parts[0];
       expect((filePart as FileUIPart).url).toBe(storageUrl);
@@ -363,7 +364,7 @@ describe("Storage Utils", () => {
         },
       ];
 
-      const inlined = await inlineFileUrls(messages, backendOrigin);
+      const inlined = await inlineFileUrls(messages, backendOrigin, chat);
 
       const filePart = inlined[0].parts[0] as FileUIPart;
       expect(filePart.url).toBe(traversalUrl);
@@ -387,7 +388,7 @@ describe("Storage Utils", () => {
         },
       ];
 
-      const inlined = await inlineFileUrls(messages, backendOrigin);
+      const inlined = await inlineFileUrls(messages, backendOrigin, chat);
 
       expect((inlined[0].parts[0] as FileUIPart).url).toBe(traversalUrl);
     });
@@ -424,9 +425,37 @@ describe("Storage Utils", () => {
           },
         ],
         backendOrigin,
+        chat,
       );
 
       expect((inlined[0].parts[0] as FileUIPart).url).toBe(foreignUrl);
+    });
+
+    it("should not inline a file stored for another Chat", async () => {
+      const [stored] = await extractFiles(
+        [createMessageWithFile("msg-1", createPngDataUrl())],
+        { orgId: "org-2", workspaceId: "ws-2", chatId: "chat-2" },
+      );
+      const storedUrl = (stored.parts[1] as FileUIPart).url;
+      const servedUrl = (
+        rewriteStorageUrls([stored], backendOrigin)[0].parts[1] as FileUIPart
+      ).url;
+
+      for (const url of [storedUrl, servedUrl]) {
+        const inlined = await inlineFileUrls(
+          [
+            {
+              id: "msg-2",
+              role: "user",
+              parts: [{ type: "file", url, mediaType: "image/png" }],
+            },
+          ],
+          backendOrigin,
+          chat,
+        );
+
+        expect((inlined[0].parts[0] as FileUIPart).url).toBe(url);
+      }
     });
   });
 

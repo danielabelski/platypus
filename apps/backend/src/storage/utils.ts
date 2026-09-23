@@ -4,7 +4,11 @@ import type { FileExtractionContext } from "./types.ts";
 import { getStorage } from "./index.ts";
 import { logger } from "../logger.ts";
 import { ValidationError } from "../errors.ts";
-import { assertValidStorageKey, chatStorageKeyPrefix } from "./keys.ts";
+import {
+  assertValidStorageKey,
+  chatStorageKeyPrefix,
+  type ChatKeyScope,
+} from "./keys.ts";
 import {
   canonicalStorageKeyFromUrl,
   decodeDataUrl,
@@ -230,14 +234,19 @@ export function rewriteStorageUrls(
  * This is an ephemeral transformation — only used in-memory for the
  * `streamText()` call. The DB continues to store canonical references.
  *
+ * Only keys under this Chat's own prefix are read — the prefix
+ * {@link extractFiles} stored them under.
+ *
  * @param messages - Array of chat messages with parts
  * @param backendOrigin - The origin of the backend server, whose `/files/` URLs
  *   this deployment will resolve (e.g. http://localhost:4000)
+ * @param scope - The Chat the turn belongs to, whose files these must be
  * @returns Modified messages with file URLs replaced by data: URLs
  */
 export async function inlineFileUrls(
   messages: PlatypusUIMessage[],
   backendOrigin: string,
+  scope: ChatKeyScope,
 ): Promise<PlatypusUIMessage[]> {
   const storage = getStorage();
 
@@ -275,6 +284,15 @@ export async function inlineFileUrls(
             logger.warn(
               { key: candidate.key },
               "Rejected invalid storage key during inlining",
+            );
+            return part;
+          }
+
+          // A turn reads only the files stored for its own Chat.
+          if (!candidate.key.startsWith(chatStorageKeyPrefix(scope))) {
+            logger.warn(
+              { key: candidate.key },
+              "Rejected storage key outside this Chat during inlining",
             );
             return part;
           }

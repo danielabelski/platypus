@@ -115,6 +115,7 @@ import {
 } from "../web-backends/index.ts";
 import { composeToolSet, registerToolSet } from "../tools/index.ts";
 import { logger } from "../logger.ts";
+import { orgScope, workspaceScope } from "../scope.ts";
 import { FileValidationError } from "./file-gate.ts";
 import { resetExtractedTextCache } from "./file-extraction.ts";
 import { buildTestPdf } from "./file-extraction.test-fixtures.ts";
@@ -2325,9 +2326,30 @@ describe("chat-execution", () => {
       ...overrides,
     });
 
+    // A run, so the turn inlines its attachments: the last step that can fail.
     const turnWith = (queries: ChatTurnQueries) =>
       prepareChatTurn(
-        { ...baseInput, request: { agentId: agentWithMcp.id } },
+        {
+          ...baseInput,
+          request: { agentId: agentWithMcp.id },
+          run: {
+            runId: "chat-1",
+            scope: workspaceScope(
+              orgScope(
+                {
+                  principal: {
+                    kind: "user",
+                    userId: "user-1",
+                    name: "Test User",
+                  },
+                },
+                "org-1",
+              ),
+              "ws-1",
+              true,
+            ),
+          },
+        },
         queries,
       );
 

@@ -82,7 +82,7 @@ const edit = { text: "Rewritten", files: [] };
 type Turn = ReturnType<typeof harness>["turn"];
 const starts: [string, (turn: Turn) => boolean][] = [
   ["send", (turn) => turn.send(edit)],
-  ["regenerate", (turn) => turn.regenerate()],
+  ["regenerate", (turn) => turn.regenerate("a1")],
   ["resendEdited", (turn) => turn.resendEdited(1, edit)],
 ];
 
@@ -154,12 +154,14 @@ describe("useChatTurn starting a turn", () => {
     ]);
   });
 
-  it("regenerates with the turn's body, then refreshes the row", () => {
+  // Named explicitly: the SDK's default names no message, and the server
+  // needs the reply's id to know what to run from.
+  it("regenerates the named reply with the turn's body, then refreshes the row", () => {
     const h = harness();
 
-    expect(h.turn.regenerate()).toBe(true);
+    expect(h.turn.regenerate("a1")).toBe(true);
 
-    expect(h.regenerate).toHaveBeenCalledWith({ body });
+    expect(h.regenerate).toHaveBeenCalledWith({ body, messageId: "a1" });
     expect(h.calls).toEqual(["regenerate", "refreshChat"]);
   });
 
@@ -176,16 +178,38 @@ describe("useChatTurn starting a turn", () => {
     expect(update(["u1", "a1", "u2"])).toEqual(["u1"]);
   });
 
+  // The edited message's own parent, which may be a message since deleted.
+  it("sends an edit under the parent it names", () => {
+    const h = harness();
+
+    h.turn.resendEdited(1, edit, "a0");
+
+    expect(h.sendMessage).toHaveBeenCalledWith(edit, {
+      body: { ...body, parentId: "a0" },
+    });
+  });
+
+  it("sends an edit of a Chat's first message as opening it", () => {
+    const h = harness();
+
+    h.turn.resendEdited(0, edit, null);
+
+    expect(h.sendMessage).toHaveBeenCalledWith(edit, {
+      body: { ...body, parentId: null },
+    });
+  });
+
   it("sends an Agent turn as the Agent alone", () => {
     const h = harness({
       selection: { agentId: "a1", providerId: "", modelId: "" },
       maxSteps: 51,
     });
 
-    h.turn.regenerate();
+    h.turn.regenerate("a1");
 
     expect(h.regenerate).toHaveBeenCalledWith({
       body: { agentId: "a1", search: false },
+      messageId: "a1",
     });
   });
 });

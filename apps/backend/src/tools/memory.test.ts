@@ -21,21 +21,26 @@ const userId = "user-1";
 
 const EMBEDDING_PROVIDER = {
   id: "prov-1",
+  organizationId: null,
+  workspaceId,
   providerType: "openai",
   embeddingModelId: "text-embedding-3-small",
 };
 
 /**
- * Stubs the two lookups `loadEmbeddingConfig` makes — the Workspace's
- * configured embedding provider id, then the Provider row itself. Passing
- * `null` leaves the Workspace unconfigured, which short-circuits before the
- * second query.
+ * Stubs the lookups `loadEmbeddingConfig` makes — the Workspace's configured
+ * embedding provider id, then the Provider row itself (a Shared one is then
+ * checked for an Attachment, queued by the test). Passing `null` leaves the
+ * Workspace unconfigured, which short-circuits before the second query.
  */
 const mockEmbeddingConfig = (
   provider: Record<string, unknown> | null = EMBEDDING_PROVIDER,
 ) => {
   mockDb.limit.mockResolvedValueOnce([
-    { memoryEmbeddingProviderId: provider ? provider.id : null },
+    {
+      organizationId: "org-1",
+      memoryEmbeddingProviderId: provider ? provider.id : null,
+    },
   ]);
   if (provider) mockDb.limit.mockResolvedValueOnce([provider]);
 };
@@ -104,6 +109,20 @@ describe("createMemoryTools", () => {
 
     it("returns an error when the configured provider has no embedding model", async () => {
       mockEmbeddingConfig({ ...EMBEDDING_PROVIDER, embeddingModelId: null });
+
+      expect(
+        await callTool(tools.memorySearch, { query: "x", limit: 5 }),
+      ).toEqual({ error: NOT_CONFIGURED });
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+    });
+
+    it("returns an error when the Shared embedding provider is not attached", async () => {
+      mockEmbeddingConfig({
+        ...EMBEDDING_PROVIDER,
+        organizationId: "org-1",
+        workspaceId: null,
+      });
+      mockDb.limit.mockResolvedValueOnce([]); // no Attachment
 
       expect(
         await callTool(tools.memorySearch, { query: "x", limit: 5 }),

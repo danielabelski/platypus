@@ -8,6 +8,7 @@ import {
   provider as providerTable,
 } from "../db/schema.ts";
 import { generateEmbedding } from "../services/embedding.ts";
+import { resolveScoped } from "../services/scoped-resource.ts";
 import { pointerSettingModelId } from "../services/model-capability.ts";
 import type { Provider } from "@platypus/schemas";
 import { logger } from "../logger.ts";
@@ -26,6 +27,7 @@ export const createMemoryTools = (
 
     const [ws] = await db
       .select({
+        organizationId: workspaceTable.organizationId,
         memoryEmbeddingProviderId: workspaceTable.memoryEmbeddingProviderId,
       })
       .from(workspaceTable)
@@ -34,11 +36,14 @@ export const createMemoryTools = (
 
     if (!ws?.memoryEmbeddingProviderId) return null;
 
-    const [provider] = await db
-      .select()
-      .from(providerTable)
-      .where(eq(providerTable.id, ws.memoryEmbeddingProviderId))
-      .limit(1);
+    // A Shared Provider serves this Workspace only where attached (ADR-0007).
+    const found = await resolveScoped(
+      db,
+      "provider",
+      ws.memoryEmbeddingProviderId,
+      { orgId: ws.organizationId, workspaceId },
+    );
+    const provider = found?.row;
 
     cachedEmbeddingProvider = provider?.embeddingModelId ? provider : null;
     return cachedEmbeddingProvider;

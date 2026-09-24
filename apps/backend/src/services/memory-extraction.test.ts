@@ -16,6 +16,7 @@ import { processMemoryExtractionBatch } from "./memory-extraction.ts";
 
 const makeWorkspace = (overrides: Record<string, unknown> = {}) => ({
   id: "ws-1",
+  organizationId: "org-1",
   ownerId: "u1",
   memoryExtractionProviderId: "p-extract",
   memoryEmbeddingProviderId: null,
@@ -38,6 +39,8 @@ const makeChat = (overrides: Record<string, unknown> = {}) => ({
 
 const makeProvider = (overrides: Record<string, unknown> = {}) => ({
   id: "p-extract",
+  organizationId: null,
+  workspaceId: "ws-1",
   providerType: "OpenAI",
   apiKey: "sk-test",
   memoryExtractionModelId: "gpt-4o-mini",
@@ -46,22 +49,21 @@ const makeProvider = (overrides: Record<string, unknown> = {}) => ({
 });
 
 /**
- * Wires up `where` to return queued terminal values for queries that end in
- * `.where(...)`, while returning `mockDb` for intermediate `where` calls
- * (so `.orderBy().limit()` chains continue to resolve).
+ * Wires up the chainable mock for the reads processMemoryExtractionBatch makes
+ * before its first Chat is processed:
+ * 1. workspaces query — terminal `where`
+ * 2. each workspace's Provider lookups (extraction, then embedding if set) —
+ *    `where().limit(1)`, so the rows are queued on `limit`
+ * 3. chats query — `where().orderBy().limit()`, queued on `limit` by the test
  *
- * Order of `where` calls in processMemoryExtractionBatch happy path:
- * 1. workspaces query (terminal)         → resolves
- * 2. chats query (intermediate)          → mockDb
- * 3. providers query (terminal)          → resolves
- * 4+. status update / summary update where calls (terminal, result discarded)
+ * Queue `providers` in lookup order; the test's own `limit` values follow.
  */
 function setupWhere(workspaces: unknown[], providers: unknown[]) {
   mockDb.where
     .mockResolvedValueOnce(workspaces) // 1. workspaces query (terminal)
-    .mockReturnValueOnce(mockDb) // 2. chats query (intermediate)
-    .mockResolvedValueOnce(providers) // 3. providers query (terminal)
-    .mockReturnValue(mockDb); // 4+. subsequent terminal awaits — discarded
+    .mockReturnValue(mockDb); // 2+. chained or discarded
+  for (const provider of providers)
+    mockDb.limit.mockResolvedValueOnce([provider]);
 }
 
 describe("processMemoryExtractionBatch", () => {
@@ -79,7 +81,7 @@ describe("processMemoryExtractionBatch", () => {
   });
 
   it("returns early when there are no chats to process", async () => {
-    setupWhere([makeWorkspace()], []);
+    setupWhere([makeWorkspace()], [makeProvider()]);
     mockDb.limit.mockResolvedValueOnce([]); // chatsToProcess
 
     await processMemoryExtractionBatch();
@@ -362,5 +364,74 @@ describe("processMemoryExtractionBatch chat selection", () => {
     vi.setSystemTime(minutes(10));
 
     expect(await run()).toEqual(["short"]);
+  });
+});
+
+/**
+ * Which Provider a run may use, against seeded rows: a Shared Provider serves a
+ * Workspace's memory only while an Attachment makes it visible there.
+ */
+describe("processMemoryExtractionBatch provider visibility", () => {
+  const shared = (overrides: Record<string, unknown> = {}) =>
+    makeProvider({ organizationId: "org-1", workspaceId: null, ...overrides });
+
+  const attached = (resourceId: string) => ({
+    id: `att-${resourceId}`,
+    workspaceId: "ws-1",
+    resourceType: "provider",
+    resourceId,
+  });
+
+  beforeEach(() => {
+    resetMockDb();
+    vi.clearAllMocks();
+    mockOpenProvider.mockReturnValue({
+      languageModel: vi.fn(() => ({ id: "model" })),
+    });
+    mockGenerateText.mockResolvedValue({ text: "Updated summary" });
+    mockGenerateEmbedding.mockResolvedValue([0.1]);
+  });
+
+  it("extracts with a Shared Provider attached to the Workspace", async () => {
+    seedDb({
+      workspace: [makeWorkspace()],
+      provider: [shared()],
+      attachment: [attached("p-extract")],
+      chat: [makeChat()],
+    });
+
+    await processMemoryExtractionBatch();
+
+    expect(mockGenerateText).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a Workspace whose Shared extraction Provider is detached", async () => {
+    const fake = seedDb({
+      workspace: [makeWorkspace()],
+      provider: [shared()],
+      chat: [makeChat()],
+    });
+
+    await processMemoryExtractionBatch();
+
+    expect(mockOpenProvider).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
+    expect(fake.tables.chat[0].memoryExtractionStatus).toBe("pending");
+  });
+
+  it("extracts without embeddings when the Shared embedding Provider is detached", async () => {
+    seedDb({
+      workspace: [makeWorkspace({ memoryEmbeddingProviderId: "p-embed" })],
+      provider: [
+        makeProvider(),
+        shared({ id: "p-embed", embeddingModelId: "text-embedding-3-small" }),
+      ],
+      chat: [makeChat()],
+    });
+
+    await processMemoryExtractionBatch();
+
+    expect(mockGenerateText).toHaveBeenCalledTimes(1);
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
   });
 });

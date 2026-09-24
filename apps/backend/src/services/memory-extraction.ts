@@ -26,6 +26,7 @@ import type { PlatypusUIMessage } from "../types.ts";
 import { openProvider } from "./provider.ts";
 import { pointerSettingModelId } from "./model-capability.ts";
 import { generateEmbedding } from "./embedding.ts";
+import { resolveScoped } from "./scoped-resource.ts";
 
 /**
  * Formats conversation messages for the summary prompt.
@@ -285,12 +286,53 @@ const findChatsToProcess = async (): Promise<{
     .from(workspaceTable)
     .where(isNotNull(workspaceTable.memoryExtractionProviderId));
 
-  if (workspacesWithExtraction.length === 0) {
+  // Resolved through the Scoped-resource authority, as every other resource a
+  // Chat turn reaches is: a Shared Provider serves a Workspace's memory only
+  // where an Attachment makes it visible there (ADR-0007). Resolved before the
+  // Chat read, so a Workspace that cannot see its extraction Provider never
+  // takes a slot in the batch.
+  // ponytail: up to two lookups per memory-enabled Workspace each run; batch
+  // the Provider and Attachment reads if that count grows large.
+  const workspaceMap = new Map<string, Omit<ChatToProcess, "chat">>();
+  for (const workspace of workspacesWithExtraction) {
+    const ctx = { orgId: workspace.organizationId, workspaceId: workspace.id };
+    const extraction = await resolveScoped(
+      db,
+      "provider",
+      workspace.memoryExtractionProviderId!,
+      ctx,
+    );
+    if (!extraction) {
+      logger.warn(
+        {
+          workspaceId: workspace.id,
+          providerId: workspace.memoryExtractionProviderId,
+        },
+        "Memory extraction skipped: provider is not visible in this workspace",
+      );
+      continue;
+    }
+    const embedding = workspace.memoryEmbeddingProviderId
+      ? await resolveScoped(
+          db,
+          "provider",
+          workspace.memoryEmbeddingProviderId,
+          ctx,
+        )
+      : null;
+    workspaceMap.set(workspace.id, {
+      workspace,
+      extractionProvider: extraction.row,
+      embeddingProvider: embedding?.row ?? null,
+    });
+  }
+
+  if (workspaceMap.size === 0) {
     logger.debug("No workspaces have memory extraction enabled, skipping");
     return { readAt: new Date(), chats: [] };
   }
 
-  const workspaceIds = workspacesWithExtraction.map((w) => w.id);
+  const workspaceIds = [...workspaceMap.keys()];
 
   // Find chats in those workspaces that need processing
   const readAt = new Date();
@@ -316,43 +358,10 @@ const findChatsToProcess = async (): Promise<{
     .orderBy(desc(chatTable.updatedAt))
     .limit(50);
 
-  // Collect all provider IDs needed (extraction + embedding)
-  const providerIds = new Set<string>();
-  for (const w of workspacesWithExtraction) {
-    if (w.memoryExtractionProviderId)
-      providerIds.add(w.memoryExtractionProviderId);
-    if (w.memoryEmbeddingProviderId)
-      providerIds.add(w.memoryEmbeddingProviderId);
-  }
-
-  const providers =
-    providerIds.size > 0
-      ? await db
-          .select()
-          .from(providerTable)
-          .where(inArray(providerTable.id, [...providerIds]))
-      : [];
-
-  const providerMap = new Map(providers.map((p) => [p.id, p]));
-  const workspaceMap = new Map(workspacesWithExtraction.map((w) => [w.id, w]));
-
-  // Build result with all required data
   const result: ChatToProcess[] = [];
-
   for (const chat of chatsToProcess) {
-    const workspace = workspaceMap.get(chat.workspaceId);
-    if (!workspace || !workspace.memoryExtractionProviderId) continue;
-
-    const extractionProvider = providerMap.get(
-      workspace.memoryExtractionProviderId,
-    );
-    if (!extractionProvider) continue;
-
-    const embeddingProvider = workspace.memoryEmbeddingProviderId
-      ? (providerMap.get(workspace.memoryEmbeddingProviderId) ?? null)
-      : null;
-
-    result.push({ chat, workspace, extractionProvider, embeddingProvider });
+    const resolved = workspaceMap.get(chat.workspaceId);
+    if (resolved) result.push({ chat, ...resolved });
   }
 
   return { readAt, chats: result };

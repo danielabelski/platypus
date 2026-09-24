@@ -23,6 +23,7 @@ const state = {
 };
 
 vi.mock("swr", () => ({
+  useSWRConfig: () => ({ cache: new Map() }),
   default: (
     key: string | null,
     fetcher: (url: string) => Promise<unknown>,
@@ -239,6 +240,12 @@ describe("TriggerRunDetailPage", () => {
     expect(screen.getByText("Nightly digest")).toBeInTheDocument();
     expect(screen.getByText(RUN_TIMELINE_EMPTY_NOTICE)).toBeInTheDocument();
     expect(screen.queryByText("Response")).not.toBeInTheDocument();
+  });
+
+  it("shows the placeholder, never a blank page, before the run has loaded", async () => {
+    await renderPage();
+
+    expect(screen.getByLabelText("Loading trigger run")).toBeInTheDocument();
   });
 
   it("says so when the run cannot be read", async () => {

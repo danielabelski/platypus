@@ -23,6 +23,14 @@ import { Input } from "@/components/ui/input";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ListError, ListState } from "@/components/list-state";
 import {
+  ButtonRowSkeleton,
+  CardGridSkeleton,
+  IconButtonSkeleton,
+  LoadingRegion,
+  SkeletonLine,
+} from "@/components/list-skeletons";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -77,6 +85,45 @@ import { orgRoutes, workspaceRoutes } from "@/lib/routes";
 // Agent or an attached org-scoped (Shared) Agent rendered with an Organization
 // badge (ADR-0007). The backend tags each row with its scope.
 type AgentWithScope = Agent & { scope?: "organization" | "workspace" };
+
+// The card's New chat + menu sit beside the content from `xl`, and in a footer
+// row under it below that — the same split the loaded card makes.
+const agentCardActions = (
+  <>
+    <Skeleton className="h-8 w-24" />
+    <IconButtonSkeleton />
+  </>
+);
+
+/** The agent cards as they load; the workspace home draws them too. */
+export const AgentCardsSkeleton = ({ cards }: { cards?: number }) => (
+  <CardGridSkeleton
+    cards={cards}
+    media
+    className="items-stretch"
+    descriptionLines={2}
+    extra={
+      // The tool set / skill / sub-agent counts.
+      <div className="flex gap-3 mt-auto">
+        {["w-16", "w-14", "w-20"].map((width) => (
+          <SkeletonLine
+            key={width}
+            lineClassName="h-4"
+            className={`h-3 ${width}`}
+          />
+        ))}
+      </div>
+    }
+    actions={
+      <ItemActions className="hidden xl:flex">{agentCardActions}</ItemActions>
+    }
+    footer={
+      <ItemFooter className="xl:hidden mt-0 pl-16">
+        {agentCardActions}
+      </ItemFooter>
+    }
+  />
+);
 
 export const AgentsList = ({
   orgId,
@@ -220,7 +267,15 @@ export const AgentsList = ({
   };
 
   if (isLoadingAgents || isLoadingProviders) {
-    return <ListState variant="loading">Loading...</ListState>;
+    return (
+      <LoadingRegion label="Loading agents">
+        <AgentCardsSkeleton />
+        <ButtonRowSkeleton
+          className="mt-4"
+          widths={["w-36", ...(canManageShared ? ["w-44"] : [])]}
+        />
+      </LoadingRegion>
+    );
   }
 
   if (agentsError) {

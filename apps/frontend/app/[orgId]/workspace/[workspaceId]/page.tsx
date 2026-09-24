@@ -1,11 +1,14 @@
 "use client";
 
-import { AgentsList } from "@/components/agents-list";
+import { AgentCardsSkeleton, AgentsList } from "@/components/agents-list";
 import { SkillsList } from "@/components/skills-list";
-import { TriggerList } from "@/components/trigger-list";
+import { TriggerCardsSkeleton, TriggerList } from "@/components/trigger-list";
 import { BoardsList } from "@/components/boards-list";
 import { DashboardsList } from "@/components/dashboards-list";
-import { CollapsibleSection } from "@/components/collapsible-section";
+import {
+  CollapsibleSection,
+  useSectionOpen,
+} from "@/components/collapsible-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -22,6 +25,11 @@ import {
   History,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ButtonRowSkeleton,
+  CardGridSkeleton,
+  SkeletonLine,
+} from "@/components/list-skeletons";
 import Link from "next/link";
 import { NoProvidersEmptyState } from "@/components/no-providers-empty-state";
 import { useAuth, useBackendUrl } from "@/components/auth-provider";
@@ -37,6 +45,153 @@ import {
 } from "@platypus/schemas";
 import { useParams } from "next/navigation";
 import { workspaceRoutes } from "@/lib/routes";
+import { cn } from "@/lib/utils";
+
+/** Where each collapsible section persists its open state. */
+const SECTION_KEYS = {
+  skills: "section:skills:open",
+  dashboards: "section:dashboards:open",
+  boards: "section:boards:open",
+  triggers: "section:triggers:open",
+} as const;
+
+/** A section heading: the h2 over its one-line description. */
+const SectionHeaderSkeleton = ({
+  titleWidth,
+  descriptionWidth,
+}: {
+  titleWidth: string;
+  descriptionWidth: string;
+}) => (
+  <div className="flex flex-col">
+    <SkeletonLine lineClassName="h-7" className={cn("h-6", titleWidth)} />
+    <SkeletonLine className={cn("h-4 max-w-full", descriptionWidth)} />
+  </div>
+);
+
+/**
+ * A collapsible section as it will load: its header and chevron, and — only
+ * if the section was last left open — its body. A collapsed section is just
+ * the header, so the placeholder doesn't draw a list the page then hides.
+ */
+const CollapsibleSectionSkeleton = ({
+  storageKey,
+  titleWidth,
+  descriptionWidth,
+  children,
+}: {
+  storageKey: string;
+  titleWidth: string;
+  descriptionWidth: string;
+  children: React.ReactNode;
+}) => {
+  const open = useSectionOpen(storageKey);
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-2">
+        <SectionHeaderSkeleton
+          titleWidth={titleWidth}
+          descriptionWidth={descriptionWidth}
+        />
+        <Skeleton className="mt-1 size-5 shrink-0" />
+      </div>
+      {open && <div className="space-y-4 pt-4">{children}</div>}
+    </div>
+  );
+};
+
+/**
+ * The workspace home while its reads are in flight, drawn on the loaded
+ * page's frame — header, stat cards, then the five sections in order, each
+ * collapsible one collapsed or expanded as it was last left — so the page
+ * lands without shifting.
+ */
+const WorkspaceSkeleton = () => (
+  <div
+    className="flex flex-col gap-8 px-4 md:px-8 py-8 pb-32 max-w-6xl mx-auto"
+    aria-label="Loading workspace"
+  >
+    {/* Header: org name, then icon + workspace name, settings link */}
+    <div className="flex flex-col">
+      <SkeletonLine lineClassName="h-5 mb-1" className="w-24" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Skeleton className="size-8 rounded" />
+          <Skeleton className="h-9 w-48" />
+        </div>
+        <div className="flex size-9 shrink-0 items-center justify-center">
+          <Skeleton className="size-5" />
+        </div>
+      </div>
+    </div>
+
+    {/* Stats Cards - mobile */}
+    <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1 lg:hidden">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Skeleton key={i} className="h-[46px] w-24 shrink-0 rounded-xl" />
+      ))}
+    </div>
+    {/* Stats Cards - desktop */}
+    <div className="hidden lg:grid gap-4 grid-cols-6">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Skeleton key={i} className="h-[106px] w-full rounded-xl" />
+      ))}
+    </div>
+
+    {/* Agents Section (not collapsible) */}
+    <div className="space-y-4">
+      <SectionHeaderSkeleton titleWidth="w-28" descriptionWidth="w-80" />
+      <div>
+        <AgentCardsSkeleton cards={2} />
+        <ButtonRowSkeleton className="mt-4" widths={["w-32"]} />
+      </div>
+    </div>
+
+    <Separator />
+
+    <CollapsibleSectionSkeleton
+      storageKey={SECTION_KEYS.skills}
+      titleWidth="w-24"
+      descriptionWidth="w-96"
+    >
+      <CardGridSkeleton cards={2} descriptionLines={2} />
+      <ButtonRowSkeleton widths={["w-32"]} />
+    </CollapsibleSectionSkeleton>
+
+    <Separator />
+
+    <CollapsibleSectionSkeleton
+      storageKey={SECTION_KEYS.dashboards}
+      titleWidth="w-36"
+      descriptionWidth="w-96"
+    >
+      <CardGridSkeleton cards={2} descriptionLines={2} />
+      <ButtonRowSkeleton widths={["w-44"]} />
+    </CollapsibleSectionSkeleton>
+
+    <Separator />
+
+    <CollapsibleSectionSkeleton
+      storageKey={SECTION_KEYS.boards}
+      titleWidth="w-24"
+      descriptionWidth="w-80"
+    >
+      <CardGridSkeleton cards={2} descriptionLines={2} />
+      <ButtonRowSkeleton widths={["w-36"]} />
+    </CollapsibleSectionSkeleton>
+
+    <Separator />
+
+    <CollapsibleSectionSkeleton
+      storageKey={SECTION_KEYS.triggers}
+      titleWidth="w-28"
+      descriptionWidth="w-80"
+    >
+      <TriggerCardsSkeleton cards={2} />
+      <ButtonRowSkeleton className="flex-wrap" widths={["w-36", "w-32"]} />
+    </CollapsibleSectionSkeleton>
+  </div>
+);
 
 const Workspace = () => {
   const params = useParams();
@@ -99,84 +254,7 @@ const Workspace = () => {
     isLoadingDashboards ||
     isLoadingOrg
   ) {
-    return (
-      <div className="flex flex-col gap-8 px-4 md:px-8 py-8 pb-32 max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col">
-          <Skeleton className="h-4 w-24 mb-1" />
-          <div className="flex items-center gap-3">
-            <Skeleton className="size-8 rounded" />
-            <Skeleton className="h-9 w-48" />
-          </div>
-        </div>
-
-        {/* Stats Cards - mobile */}
-        <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1 lg:hidden">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-9 w-24 min-w-fit rounded-xl" />
-          ))}
-        </div>
-        {/* Stats Cards - desktop */}
-        <div className="hidden lg:grid gap-4 grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-[104px] w-full rounded-xl" />
-          ))}
-        </div>
-
-        {/* Agents Section */}
-        <div className="space-y-4">
-          <div className="flex flex-col">
-            <Skeleton className="h-6 w-32 mb-1" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <Skeleton className="h-16 w-full rounded-lg" />
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Skills Section */}
-        <div className="space-y-4">
-          <div className="flex flex-col">
-            <Skeleton className="h-6 w-28 mb-1" />
-            <Skeleton className="h-4 w-72" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <Skeleton className="h-16 w-full rounded-lg" />
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Boards Section */}
-        <div className="space-y-4">
-          <div className="flex flex-col">
-            <Skeleton className="h-6 w-28 mb-1" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <Skeleton className="h-16 w-full rounded-lg" />
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Triggers Section */}
-        <div className="space-y-4">
-          <div className="flex flex-col">
-            <Skeleton className="h-6 w-32 mb-1" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-16 w-full rounded-lg" />
-          </div>
-        </div>
-      </div>
-    );
+    return <WorkspaceSkeleton />;
   }
 
   if (!workspaceData) {
@@ -349,7 +427,7 @@ const Workspace = () => {
               </>
             }
             description="Reusable instruction sets that help agents perform specific tasks."
-            storageKey="section:skills:open"
+            storageKey={SECTION_KEYS.skills}
           >
             <SkillsList orgId={orgId} workspaceId={workspaceId} />
           </CollapsibleSection>
@@ -364,7 +442,7 @@ const Workspace = () => {
               </>
             }
             description="Widget-based dashboards for surfacing agent data at a glance."
-            storageKey="section:dashboards:open"
+            storageKey={SECTION_KEYS.dashboards}
           >
             <DashboardsList orgId={orgId} workspaceId={workspaceId} />
             <Button variant="outline" asChild>
@@ -384,7 +462,7 @@ const Workspace = () => {
               </>
             }
             description="Visual work management boards for organizing tasks."
-            storageKey="section:boards:open"
+            storageKey={SECTION_KEYS.boards}
           >
             <BoardsList orgId={orgId} workspaceId={workspaceId} />
             <Button variant="outline" asChild>
@@ -404,7 +482,7 @@ const Workspace = () => {
               </>
             }
             description="Automated agent runs configured for this workspace."
-            storageKey="section:triggers:open"
+            storageKey={SECTION_KEYS.triggers}
           >
             <TriggerList orgId={orgId} workspaceId={workspaceId} />
             <div className="flex flex-wrap gap-2">

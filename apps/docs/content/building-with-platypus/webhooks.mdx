@@ -47,7 +47,10 @@ In your Workspace, go to **Settings → Webhooks** and click **Add webhook**.
 ### Configure the endpoint
 
 - **Name** — a label for the Webhook.
-- **URL** — where the `POST` is sent. **Must be HTTPS.**
+- **URL** — where the `POST` is sent. **Must be HTTPS**, and must pass the
+  deployment's [egress guard](/self-hosting/configuration#the-egress-guard):
+  loopback and cloud-metadata addresses are refused, and so are private
+  networks if your Operator has turned them off. A refused URL fails on save.
 - **Events** — which events to subscribe to (defaults to all).
 - **Headers** — optional custom headers sent with every delivery (e.g. an
   `Authorization` header your endpoint expects).
@@ -345,6 +348,11 @@ const ok = verify(rawBody, req.headers["x-webhook-signature"], signingSecret);
 - On failure (non-2xx, timeout, or connection error) Platypus retries up to
   **3 times** with a backoff of **1s, 2s, then 4s**. After that the delivery is
   given up.
+- Redirects are **not followed**. A `3xx` response counts as a failure, so point
+  the Webhook at the final URL.
+- Every attempt re-checks the URL against the egress guard. If its hostname
+  now resolves somewhere the guard refuses, the delivery is dropped without
+  retrying.
 - Disabled Webhooks, and Webhooks not subscribed to the event, are skipped.
 
 <Callout type="info">

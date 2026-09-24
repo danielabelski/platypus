@@ -202,7 +202,7 @@ itself roughly 35 minutes later on the defaults.
 | Variable                        | Purpose                                                                                                                                   | Default                 | Required |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | -------- |
 | `FRONTEND_URL`                  | Frontend URL used to build resource links inside tool responses.                                                                          | `http://localhost:3001` | No       |
-| `EGRESS_ALLOW_PRIVATE_NETWORKS` | Whether tools that fetch a **model-chosen** URL may reach private networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`). | `true`                  | No       |
+| `EGRESS_ALLOW_PRIVATE_NETWORKS` | Whether tools that fetch a **model-chosen** URL, and Webhook deliveries, may reach private networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`). | `true`                  | No       |
 
 Which address ranges the guard blocks regardless of that setting, and why the
 default is permissive, are in

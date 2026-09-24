@@ -16,7 +16,9 @@ import {
   updateOwned,
   deleteOwned,
 } from "../services/workspace-resource.ts";
-import { NotFoundError } from "../errors.ts";
+import { NotFoundError, ValidationError } from "../errors.ts";
+import { checkEgress } from "../utils/egress-guard.ts";
+import { logger } from "../logger.ts";
 import { webhookCreateSchema, webhookUpdateSchema } from "@platypus/schemas";
 import type { Variables } from "../server.ts";
 
@@ -24,6 +26,25 @@ const webhook = new Hono<{ Variables: Variables }>();
 
 function generateSigningSecret(): string {
   return crypto.randomBytes(32).toString("hex");
+}
+
+/**
+ * Rejects a URL the delivery-time egress check would block, so the user hears
+ * about it on save rather than through deliveries that silently never arrive.
+ * Delivery re-checks regardless, since DNS can change after this. The message
+ * is uniform for the same reason as the guard's own: the reason goes to the log.
+ */
+async function assertDeliverable(url: string): Promise<void> {
+  const egress = await checkEgress(url);
+  if (!egress.allowed) {
+    logger.warn(
+      { url, reason: egress.reason },
+      "Rejected a webhook URL by network policy",
+    );
+    throw new ValidationError(
+      "This URL is not permitted by this deployment's network policy.",
+    );
+  }
 }
 
 /** GET / — List all webhooks for workspace */
@@ -57,6 +78,8 @@ webhook.post(
       enabled?: boolean;
       events?: string[];
     };
+
+    await assertDeliverable(body.url);
 
     const allEvents = [
       "notification.created",
@@ -123,6 +146,8 @@ webhook.put(
       enabled?: boolean;
       events?: string[];
     };
+
+    if (body.url !== undefined) await assertDeliverable(body.url);
 
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),

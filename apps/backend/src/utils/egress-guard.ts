@@ -39,6 +39,10 @@ import { BlockList, isIP } from "node:net";
  *
  * Both are why the guard is scoped to a prompt-injected model rather than sold as
  * an SSRF boundary: it removes the easy path, not every path.
+ *
+ * Webhook delivery also runs user-supplied URLs through here, and closes the
+ * redirect gap itself by not following redirects. Re-resolution stays open there
+ * too.
  */
 
 export type EgressVerdict =

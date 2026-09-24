@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 /** Typed shape of the fetch options captured by mockFetch spy calls. */
 interface WebhookFetchOptions {
   method: string;
+  redirect: string;
   headers: Record<string, string>;
   body: string;
 }
@@ -30,6 +31,9 @@ vi.mock("../index.ts", () => ({
   },
 }));
 
+const mockCheckEgress = vi.hoisted(() => vi.fn());
+vi.mock("../utils/egress-guard.ts", () => ({ checkEgress: mockCheckEgress }));
+
 vi.mock("./trigger-firing.ts", () => ({
   fireTrigger: vi.fn(),
 }));
@@ -49,6 +53,7 @@ describe("Webhook Delivery Service", () => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     global.fetch = mockFetch;
+    mockCheckEgress.mockResolvedValue({ allowed: true });
   });
 
   afterEach(() => {
@@ -92,6 +97,7 @@ describe("Webhook Delivery Service", () => {
     const [url, options] = getFetchCall(mockFetch.mock.calls, 0);
     expect(url).toBe("https://example.com/webhook");
     expect(options.method).toBe("POST");
+    expect(options.redirect).toBe("manual");
     expect(options.headers["Content-Type"]).toBe("application/json");
     expect(options.headers["X-Webhook-Signature"]).toBeDefined();
     expect(options.headers["X-Webhook-Timestamp"]).toBeDefined();
@@ -295,5 +301,24 @@ describe("Webhook Delivery Service", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     const [url2] = getFetchCall(mockFetch.mock.calls, 1);
     expect(url2).toBe("https://other.com/webhook");
+  });
+
+  it("should not deliver to a URL the network policy blocks", async () => {
+    mockWebhookSelect.mockResolvedValueOnce([sampleWebhook]);
+    mockCheckEgress.mockResolvedValue({
+      allowed: false,
+      reason: "'example.com' resolves to 127.0.0.1 (loopback)",
+    });
+
+    dispatchEvent("org-1", "ws-1", notificationEvent("notification.created"));
+
+    await vi.advanceTimersByTimeAsync(8000);
+
+    expect(mockCheckEgress).toHaveBeenCalledWith("https://example.com/webhook");
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "https://example.com/webhook" }),
+      "Webhook delivery blocked by network policy",
+    );
   });
 });

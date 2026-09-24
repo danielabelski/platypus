@@ -18,10 +18,19 @@ vi.mock("node:crypto", async () => {
   };
 });
 
+const mockCheckEgress = vi.hoisted(() => vi.fn());
+vi.mock("../utils/egress-guard.ts", () => ({ checkEgress: mockCheckEgress }));
+
+const blocked = {
+  allowed: false,
+  reason: "'internal.example' resolves to 127.0.0.1 (loopback)",
+};
+
 describe("Webhook Routes", () => {
   beforeEach(() => {
     resetMockDb();
     vi.clearAllMocks();
+    mockCheckEgress.mockResolvedValue({ allowed: true });
     mockDb.where.mockReturnValue(mockDb);
   });
 
@@ -135,6 +144,31 @@ describe("Webhook Routes", () => {
       expect(data.url).toBe("https://example.com/webhook");
       expect(data.name).toBe("My Webhook");
     });
+
+    it("should reject a URL the network policy blocks", async () => {
+      mockSession();
+      mockDb.limit.mockResolvedValueOnce([{ role: "member" }]); // requireOrgAccess
+      mockDb.limit.mockResolvedValueOnce([
+        { ownerId: "user-1", organizationId: "org-1" },
+      ]); // requireWorkspaceAccess
+      mockCheckEgress.mockResolvedValueOnce(blocked);
+
+      const res = await app.request(baseUrl, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "My Webhook",
+          url: "https://internal.example/webhook",
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toBe(
+        "This URL is not permitted by this deployment's network policy.",
+      );
+      expect(mockDb.insert).not.toHaveBeenCalled();
+    });
   });
 
   describe("GET /:webhookId", () => {
@@ -233,6 +267,24 @@ describe("Webhook Routes", () => {
       });
 
       expect(res.status).toBe(404);
+    });
+
+    it("should reject a URL the network policy blocks", async () => {
+      mockSession();
+      mockDb.limit.mockResolvedValueOnce([{ role: "member" }]); // requireOrgAccess
+      mockDb.limit.mockResolvedValueOnce([
+        { ownerId: "user-1", organizationId: "org-1" },
+      ]); // requireWorkspaceAccess
+      mockCheckEgress.mockResolvedValueOnce(blocked);
+
+      const res = await app.request(`${baseUrl}/wh-1`, {
+        method: "PUT",
+        body: JSON.stringify({ url: "https://internal.example/webhook" }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      expect(res.status).toBe(400);
+      expect(mockDb.update).not.toHaveBeenCalled();
     });
   });
 

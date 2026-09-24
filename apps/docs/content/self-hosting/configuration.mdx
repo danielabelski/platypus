@@ -303,6 +303,10 @@ Some tools fetch a URL the **model** chose rather than one a person typed — th
 `fetchUrl` tool is the one that ships. That is a different risk from an outbound
 call your code makes, because a prompt-injected model can pick the target.
 
+[Webhook](/building-with-platypus/webhooks) URLs go through the same guard, since
+any Workspace Owner can set one. For Webhooks the guard is checked when the URL
+is saved and again on every delivery, and redirects are never followed.
+
 ### The egress guard
 
 Every such fetch goes through a guard first. It resolves the hostname and refuses
@@ -324,7 +328,8 @@ Private networks — `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`
 are **allowed by default**, which is the opposite of a textbook default-deny.
 That is deliberate: reading an internal wiki or intranet page is a first-class use
 case for a self-hosted deployment. Set `EGRESS_ALLOW_PRIVATE_NETWORKS=false` on an
-internet-facing deployment whose Agents have no reason to read internal hosts.
+internet-facing deployment whose Agents have no reason to read internal hosts
+and whose Webhooks have no reason to target them.
 
 <Callout type="warning">
   The guard is a **pre-flight check on the URL**, so it removes the easy path

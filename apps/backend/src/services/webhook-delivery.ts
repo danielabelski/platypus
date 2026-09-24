@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { logger } from "../logger.ts";
+import { checkEgress } from "../utils/egress-guard.ts";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000];
@@ -29,6 +30,18 @@ export async function deliverWebhook(
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     try {
+      // Checked on every attempt: the URL's DNS records can change between
+      // retries, and a Webhook URL is user-supplied, so it gets the same egress
+      // policy as a model-chosen one.
+      const egress = await checkEgress(url);
+      if (!egress.allowed) {
+        logger.warn(
+          { url, reason: egress.reason },
+          "Webhook delivery blocked by network policy",
+        );
+        return;
+      }
+
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "X-Webhook-Signature": signature,
@@ -40,6 +53,9 @@ export async function deliverWebhook(
         method: "POST",
         headers,
         body: payload,
+        // Redirects are not followed: a redirect target would skip the egress
+        // check above. A 3xx is a non-OK response like any other.
+        redirect: "manual",
         signal: controller.signal,
       });
 
